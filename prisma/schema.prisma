@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TicketStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  DONE
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EventType {
+  TICKET_UPDATED
+  WORKLOG_ADDED
+  DECISION_MADE
+  BLOCKER_FOUND
+  SCOPE_CHANGED
+  REPLAN_REQUESTED
+  REPLAN_APPLIED
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum RunType {
+  PLANNING
+  EXECUTION
+  REPLAN
+}
+
+enum AgentRole {
+  PM
+  TECH_LEAD
+  ENGINEER
+  QA
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  tickets     Ticket[]
+  events      Event[]
+  runs        Run[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model Ticket {
+  id               String         @id @default(cuid())
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  status           TicketStatus   @default(BACKLOG)
+  priority         TicketPriority @default(MEDIUM)
+  currentVersionId String?        @unique
+  currentVersion   TicketVersion? @relation("TicketCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions         TicketVersion[] @relation("TicketVersions")
+  events           Event[]
+  runs             Run[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model TicketVersion {
+  id               String   @id @default(cuid())
+  ticketId         String
+  ticket           Ticket   @relation("TicketVersions", fields: [ticketId], references: [id], onDelete: Cascade)
+  version          Int
+  snapshot         Json
+  createdAt        DateTime @default(now())
+  currentForTicket Ticket?  @relation("TicketCurrentVersion")
+
+  @@unique([ticketId, version])
+  @@index([ticketId, createdAt])
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  type      EventType
+  payload   Json
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ticketId  String?
+  ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([projectId])
+  @@index([ticketId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Agent {
+  id        String   @id @default(cuid())
+  name      String
+  role      AgentRole
+  runs      Run[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Run {
+  id         String    @id @default(cuid())
+  type       RunType
+  status     RunStatus @default(PENDING)
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ticketId   String?
+  ticket     Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  agentId    String?
+  agent      Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  usages     Usage[]
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([ticketId])
+  @@index([agentId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Usage {
+  id               String   @id @default(cuid())
+  runId            String
+  run              Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  costUsd          Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([runId])
+  @@index([createdAt])
+}
