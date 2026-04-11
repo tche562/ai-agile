@@ -13,6 +13,7 @@
     "format:check": "prettier . --check",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "db:verify": "tsx scripts/verify-db.ts",
     "prisma:generate": "prisma generate"
   },
   "prisma": {
