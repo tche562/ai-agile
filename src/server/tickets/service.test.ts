@@ -128,23 +128,25 @@ describe("updateTicket", () => {
       ticketVersion: {
         // Simulate two transactions racing on the same observed latest version.
         findFirst: vi.fn().mockResolvedValue({ version: 1 }),
-        create: vi.fn().mockImplementation(async ({ data }: { data: { ticketId: string; version: number } }) => {
-          const key = `${data.ticketId}:${data.version}`;
+        create: vi
+          .fn()
+          .mockImplementation(async ({ data }: { data: { ticketId: string; version: number } }) => {
+            const key = `${data.ticketId}:${data.version}`;
 
-          if (versionRegistry.has(key)) {
-            const uniqueError = Object.assign(new Error("Unique constraint failed"), {
-              code: "P2002",
-              meta: { target: ["ticketId", "version"] },
-            });
-            throw uniqueError;
-          }
+            if (versionRegistry.has(key)) {
+              const uniqueError = Object.assign(new Error("Unique constraint failed"), {
+                code: "P2002",
+                meta: { target: ["ticketId", "version"] },
+              });
+              throw uniqueError;
+            }
 
-          versionRegistry.add(key);
-          return {
-            id: `version-${data.version}`,
-            version: data.version,
-          };
-        }),
+            versionRegistry.add(key);
+            return {
+              id: `version-${data.version}`,
+              version: data.version,
+            };
+          }),
       },
     };
 

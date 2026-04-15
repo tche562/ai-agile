@@ -1,14 +1,37 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { authOptions } from "@/auth";
+import { db } from "@/server/db";
+import { requireAuthUser } from "@/server/auth/require-auth-user";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 export default async function ProjectsPage() {
-  const session = await getServerSession(authOptions);
+  const currentUser = await requireAuthUser();
 
-  if (!session?.user?.email) {
-    redirect("/login");
-  }
+  const projects = await db.project.findMany({
+    where: {
+      ownerId: currentUser.id,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
 
-  return <div>Logged in as {session.user.email}</div>;
+  return (
+    <main>
+      <p>Logged in as {currentUser.email}</p>
+      <SignOutButton />
+
+      <h1>Your Projects</h1>
+
+      {projects.length === 0 ? (
+        <p>No projects yet.</p>
+      ) : (
+        <ul>
+          {projects.map((project) => (
+            <li key={project.id}>
+              {project.name} ({project.id})
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
 }
