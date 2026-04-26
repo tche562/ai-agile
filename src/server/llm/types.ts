@@ -36,12 +36,7 @@ export class LLMOutputParseError extends Error {
   model: string;
   rawText: string;
 
-  constructor(args: {
-    provider: LLMProvider;
-    model: string;
-    rawText: string;
-    message?: string;
-  }) {
+  constructor(args: { provider: LLMProvider; model: string; rawText: string; message?: string }) {
     super(args.message ?? "Failed to parse model output as valid JSON.");
     this.name = "LLMOutputParseError";
     this.provider = args.provider;

@@ -6,8 +6,7 @@ import type { GenerateJSONParams, GenerateJSONResult } from "../types";
 import { LLMConfigurationError } from "../types";
 import { buildJsonOnlyPrompt, normalizeUsage, parseAndValidateJson } from "../utils";
 
-const DEFAULT_ANTHROPIC_MODEL =
-  process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
@@ -23,7 +22,7 @@ export class AnthropicClient implements LLMClient {
   }
 
   async generateJSON<TSchema extends z.ZodTypeAny>(
-    params: GenerateJSONParams<TSchema>
+    params: GenerateJSONParams<TSchema>,
   ): Promise<GenerateJSONResult<TSchema>> {
     const model = params.meta?.model || DEFAULT_ANTHROPIC_MODEL;
     const temperature = params.meta?.temperature ?? 0;

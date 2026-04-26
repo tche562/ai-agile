@@ -22,7 +22,7 @@ export class OpenAIClient implements LLMClient {
   }
 
   async generateJSON<TSchema extends z.ZodTypeAny>(
-    params: GenerateJSONParams<TSchema>
+    params: GenerateJSONParams<TSchema>,
   ): Promise<GenerateJSONResult<TSchema>> {
     const model = params.meta?.model || DEFAULT_OPENAI_MODEL;
     const temperature = params.meta?.temperature ?? 0;

@@ -29,7 +29,7 @@ async function main() {
 
   if (!hasOpenAI && !hasAnthropic) {
     throw new Error(
-      "No API keys found. Please set OPENAI_API_KEY and/or ANTHROPIC_API_KEY in .env"
+      "No API keys found. Please set OPENAI_API_KEY and/or ANTHROPIC_API_KEY in .env",
     );
   }
 

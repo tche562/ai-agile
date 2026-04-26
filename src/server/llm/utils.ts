@@ -1,16 +1,11 @@
 import { z } from "zod";
 import { LLMOutputParseError, type LLMProvider, type LLMUsage } from "./types";
 
-export function buildJsonOnlyPrompt(args: {
-  system: string;
-  user: string;
-  schema: z.ZodTypeAny;
-}): { systemPrompt: string; userPrompt: string } {
-  const shapeHint = JSON.stringify(
-    z.toJSONSchema(args.schema, { target: "draft-7" }),
-    null,
-    2
-  );
+export function buildJsonOnlyPrompt(args: { system: string; user: string; schema: z.ZodTypeAny }): {
+  systemPrompt: string;
+  userPrompt: string;
+} {
+  const shapeHint = JSON.stringify(z.toJSONSchema(args.schema, { target: "draft-7" }), null, 2);
 
   const systemPrompt = [
     args.system.trim(),
