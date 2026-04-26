@@ -3,8 +3,9 @@ import { z } from "zod";
 
 import type { LLMClient } from "../client";
 import type { GenerateJSONParams, GenerateJSONResult } from "../types";
+import { generateJSONWithRetry } from "../retry";
 import { LLMConfigurationError } from "../types";
-import { buildJsonOnlyPrompt, normalizeUsage, parseAndValidateJson } from "../utils";
+import { buildJsonOnlyPrompt, buildUserPromptForAttempt, normalizeUsage } from "../utils";
 
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 
@@ -33,40 +34,42 @@ export class OpenAIClient implements LLMClient {
       schema: params.schema,
     });
 
-    const completion = await this.client.chat.completions.create({
+    return generateJSONWithRetry({
+      provider: "openai",
       model,
-      temperature,
-      messages: [
-        {
-          role: "developer",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-    });
-
-    const rawText = completion.choices[0]?.message?.content?.trim() ?? "";
-
-    const object = parseAndValidateJson({
-      rawText,
       schema: params.schema,
-      provider: "openai",
-      model,
-    });
+      maxRetries: params.meta?.maxRetries,
+      generateRawText: async (context) => {
+        const completion = await this.client.chat.completions.create({
+          model,
+          temperature,
+          messages: [
+            {
+              role: "developer",
+              content: systemPrompt,
+            },
+            {
+              role: "user",
+              content: buildUserPromptForAttempt({
+                userPrompt,
+                attempt: context.attempt,
+                previousError: context.previousError,
+              }),
+            },
+          ],
+        });
 
-    return {
-      object,
-      rawText,
-      provider: "openai",
-      model,
-      usage: normalizeUsage({
-        prompt_tokens: completion.usage?.prompt_tokens,
-        completion_tokens: completion.usage?.completion_tokens,
-        total_tokens: completion.usage?.total_tokens,
-      }),
-    };
+        const rawText = completion.choices[0]?.message?.content?.trim() ?? "";
+
+        return {
+          rawText,
+          usage: normalizeUsage({
+            prompt_tokens: completion.usage?.prompt_tokens,
+            completion_tokens: completion.usage?.completion_tokens,
+            total_tokens: completion.usage?.total_tokens,
+          }),
+        };
+      },
+    });
   }
 }

@@ -3,8 +3,9 @@ import { z } from "zod";
 
 import type { LLMClient } from "../client";
 import type { GenerateJSONParams, GenerateJSONResult } from "../types";
+import { generateJSONWithRetry } from "../retry";
 import { LLMConfigurationError } from "../types";
-import { buildJsonOnlyPrompt, normalizeUsage, parseAndValidateJson } from "../utils";
+import { buildJsonOnlyPrompt, buildUserPromptForAttempt, normalizeUsage } from "../utils";
 
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 
@@ -33,41 +34,43 @@ export class AnthropicClient implements LLMClient {
       schema: params.schema,
     });
 
-    const message = await this.client.messages.create({
+    return generateJSONWithRetry({
+      provider: "anthropic",
       model,
-      temperature,
-      max_tokens: 2000,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-    });
-
-    const rawText = message.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n")
-      .trim();
-
-    const object = parseAndValidateJson({
-      rawText,
       schema: params.schema,
-      provider: "anthropic",
-      model,
-    });
+      maxRetries: params.meta?.maxRetries,
+      generateRawText: async (context) => {
+        const message = await this.client.messages.create({
+          model,
+          temperature,
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content: buildUserPromptForAttempt({
+                userPrompt,
+                attempt: context.attempt,
+                previousError: context.previousError,
+              }),
+            },
+          ],
+        });
 
-    return {
-      object,
-      rawText,
-      provider: "anthropic",
-      model,
-      usage: normalizeUsage({
-        input_tokens: message.usage?.input_tokens,
-        output_tokens: message.usage?.output_tokens,
-      }),
-    };
+        const rawText = message.content
+          .filter((item) => item.type === "text")
+          .map((item) => item.text)
+          .join("\n")
+          .trim();
+
+        return {
+          rawText,
+          usage: normalizeUsage({
+            input_tokens: message.usage?.input_tokens,
+            output_tokens: message.usage?.output_tokens,
+          }),
+        };
+      },
+    });
   }
 }

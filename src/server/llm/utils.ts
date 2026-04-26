@@ -22,6 +22,28 @@ export function buildJsonOnlyPrompt(args: { system: string; user: string; schema
   return { systemPrompt, userPrompt };
 }
 
+export function buildUserPromptForAttempt(args: {
+  userPrompt: string;
+  attempt: number;
+  previousError?: string;
+}): string {
+  if (args.attempt <= 1) {
+    return args.userPrompt;
+  }
+
+  return [
+    args.userPrompt.trim(),
+    "",
+    "Your previous response failed JSON validation.",
+    args.previousError ? `Validation error: ${args.previousError}` : "",
+    "Retry now.",
+    "Return only corrected valid JSON.",
+    "Do not include markdown fences, explanations, headings, or extra text.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function extractJsonText(rawText: string): string {
   const trimmed = rawText.trim();
 
