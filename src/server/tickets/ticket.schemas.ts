@@ -4,12 +4,14 @@ import { z } from "zod";
 const titleSchema = z.string().trim().min(1);
 const descriptionSchema = z.string().trim().min(1).nullable();
 
-export const createTicketSchema = z.object({
-  title: titleSchema,
-  description: descriptionSchema.optional(),
-  status: z.nativeEnum(TicketStatus).optional(),
-  priority: z.nativeEnum(TicketPriority).optional(),
-}).strict();
+export const createTicketSchema = z
+  .object({
+    title: titleSchema,
+    description: descriptionSchema.optional(),
+    status: z.nativeEnum(TicketStatus).optional(),
+    priority: z.nativeEnum(TicketPriority).optional(),
+  })
+  .strict();
 
 export const patchTicketSchema = z
   .object({

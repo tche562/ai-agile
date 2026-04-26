@@ -7,7 +7,12 @@ const TERMINAL_RUN_STATUSES = new Set<RunStatus>([
 ]);
 
 const ALLOWED_TRANSITIONS: Record<RunStatus, RunStatus[]> = {
-  [RunStatus.PENDING]: [RunStatus.RUNNING, RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELED],
+  [RunStatus.PENDING]: [
+    RunStatus.RUNNING,
+    RunStatus.SUCCEEDED,
+    RunStatus.FAILED,
+    RunStatus.CANCELED,
+  ],
   [RunStatus.RUNNING]: [RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELED],
   [RunStatus.SUCCEEDED]: [],
   [RunStatus.FAILED]: [],
