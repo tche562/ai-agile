@@ -1,16 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
 
-import type { LLMClient } from "../client";
-import type { GenerateJSONParams, GenerateJSONResult } from "../types";
-import { enforceLLMRateLimit } from "../ratelimit";
-import { generateJSONWithRetry } from "../retry";
+import type { LLMProviderAdapter, ProviderCallParams, ProviderCallResult } from "../client";
 import { LLMConfigurationError } from "../types";
-import { buildJsonOnlyPrompt, buildUserPromptForAttempt, normalizeUsage } from "../utils";
+import { normalizeUsage } from "../utils";
 
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 
-export class AnthropicClient implements LLMClient {
+export class AnthropicProviderAdapter implements LLMProviderAdapter {
+  provider = "anthropic" as const;
+  defaultModel = DEFAULT_ANTHROPIC_MODEL;
   private client: Anthropic;
 
   constructor() {
@@ -23,66 +21,36 @@ export class AnthropicClient implements LLMClient {
     });
   }
 
-  async generateJSON<TSchema extends z.ZodTypeAny>(
-    params: GenerateJSONParams<TSchema>,
-  ): Promise<GenerateJSONResult<TSchema>> {
-    const model = params.meta?.model || DEFAULT_ANTHROPIC_MODEL;
-    const temperature = params.meta?.temperature ?? 0;
-
-    const rateLimit = await enforceLLMRateLimit({
-      userId: params.meta?.userId,
-      projectId: params.meta?.projectId,
-      provider: "anthropic",
+  async generateRawText(params: ProviderCallParams): Promise<ProviderCallResult> {
+    const message = await this.client.messages.create({
+      model: params.model,
+      temperature: params.temperature,
+      max_tokens: 2000,
+      system: params.systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: params.userPrompt,
+        },
+      ],
     });
 
-    const { systemPrompt, userPrompt } = buildJsonOnlyPrompt({
-      system: params.system,
-      user: params.user,
-      schema: params.schema,
-    });
-
-    const result = await generateJSONWithRetry({
-      provider: "anthropic",
-      model,
-      schema: params.schema,
-      maxRetries: params.meta?.maxRetries,
-      generateRawText: async (context) => {
-        const message = await this.client.messages.create({
-          model,
-          temperature,
-          max_tokens: 2000,
-          system: systemPrompt,
-          messages: [
-            {
-              role: "user",
-              content: buildUserPromptForAttempt({
-                userPrompt,
-                attempt: context.attempt,
-                previousError: context.previousError,
-              }),
-            },
-          ],
-        });
-
-        const rawText = message.content
-          .filter((item) => item.type === "text")
-          .map((item) => item.text)
-          .join("\n")
-          .trim();
-
-        return {
-          rawText,
-          usage: normalizeUsage({
-            input_tokens: message.usage?.input_tokens,
-            output_tokens: message.usage?.output_tokens,
-          }),
-        };
-      },
+    const rawText = message.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n")
+      .trim();
+    const usage = normalizeUsage({
+      input_tokens: message.usage?.input_tokens,
+      output_tokens: message.usage?.output_tokens,
     });
 
     return {
-      ...result,
-      rateLimit,
+      provider: this.provider,
+      model: params.model,
+      rawText,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
     };
   }
 }

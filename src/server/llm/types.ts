@@ -3,9 +3,11 @@ import { z } from "zod";
 export type LLMProvider = "openai" | "anthropic";
 
 export type LLMGenerateJSONMeta = {
-  userId?: string;
-  projectId?: string;
+  userId: string;
+  projectId: string;
   runId?: string;
+  requestId?: string;
+  purpose?: string;
   model?: string;
   temperature?: number;
 
@@ -20,7 +22,7 @@ export type GenerateJSONParams<TSchema extends z.ZodTypeAny> = {
   system: string;
   user: string;
   schema: TSchema;
-  meta?: LLMGenerateJSONMeta;
+  meta: LLMGenerateJSONMeta;
 };
 
 export type LLMUsage = {
