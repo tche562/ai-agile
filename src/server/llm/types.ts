@@ -29,6 +29,13 @@ export type LLMUsage = {
   totalTokens?: number;
 };
 
+export type LLMRateLimitInfo = {
+  identifier: string;
+  limit: number;
+  remaining: number;
+  reset: number;
+};
+
 export type RawLLMResponse = {
   rawText: string;
   usage?: LLMUsage;
@@ -57,6 +64,7 @@ export type GenerateJSONResult<TSchema extends z.ZodTypeAny> = {
   provider: LLMProvider;
   model: string;
   usage?: LLMUsage;
+  rateLimit?: LLMRateLimitInfo;
 
   /**
    * Total attempts used, including the successful attempt.
@@ -102,6 +110,35 @@ export class LLMGenerationFailedError extends Error {
     this.provider = args.provider;
     this.model = args.model;
     this.attempts = args.attempts;
+  }
+}
+
+export class LLMRateLimitError extends Error {
+  statusCode = 429 as const;
+  provider?: LLMProvider;
+  identifier: string;
+  limit: number;
+  remaining: number;
+  reset: number;
+  retryAfterSeconds: number;
+
+  constructor(args: {
+    provider?: LLMProvider;
+    identifier: string;
+    limit: number;
+    remaining: number;
+    reset: number;
+    retryAfterSeconds: number;
+    message?: string;
+  }) {
+    super(args.message ?? "LLM rate limit exceeded.");
+    this.name = "LLMRateLimitError";
+    this.provider = args.provider;
+    this.identifier = args.identifier;
+    this.limit = args.limit;
+    this.remaining = args.remaining;
+    this.reset = args.reset;
+    this.retryAfterSeconds = args.retryAfterSeconds;
   }
 }
 

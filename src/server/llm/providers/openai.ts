@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { LLMClient } from "../client";
 import type { GenerateJSONParams, GenerateJSONResult } from "../types";
+import { enforceLLMRateLimit } from "../ratelimit";
 import { generateJSONWithRetry } from "../retry";
 import { LLMConfigurationError } from "../types";
 import { buildJsonOnlyPrompt, buildUserPromptForAttempt, normalizeUsage } from "../utils";
@@ -28,13 +29,19 @@ export class OpenAIClient implements LLMClient {
     const model = params.meta?.model || DEFAULT_OPENAI_MODEL;
     const temperature = params.meta?.temperature ?? 0;
 
+    const rateLimit = await enforceLLMRateLimit({
+      userId: params.meta?.userId,
+      projectId: params.meta?.projectId,
+      provider: "openai",
+    });
+
     const { systemPrompt, userPrompt } = buildJsonOnlyPrompt({
       system: params.system,
       user: params.user,
       schema: params.schema,
     });
 
-    return generateJSONWithRetry({
+    const result = await generateJSONWithRetry({
       provider: "openai",
       model,
       schema: params.schema,
@@ -71,5 +78,10 @@ export class OpenAIClient implements LLMClient {
         };
       },
     });
+
+    return {
+      ...result,
+      rateLimit,
+    };
   }
 }

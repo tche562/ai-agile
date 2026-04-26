@@ -17,6 +17,10 @@ async function verifyProvider(provider: Provider) {
     system: "You are a project planning assistant for an AI Agile project manager.",
     user: "Return a very short ticket summary for building login, set priority, and list 2 risks.",
     schema: demoSchema,
+    meta: {
+      userId: "verify-user",
+      projectId: "verify-project",
+    },
   });
 
   console.log(`\n${provider.toUpperCase()} OK`);
