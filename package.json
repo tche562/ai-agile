@@ -14,20 +14,26 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:verify": "tsx scripts/verify-db.ts",
+    "verify:llm": "tsx scripts/verify-llm.ts",
+    "verify:llm:ratelimit": "tsx scripts/verify-llm-ratelimit.ts",
     "prisma:generate": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "next-auth": "^4.24.13",
+    "openai": "^6.34.0",
     "pg": "^8.19.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",

@@ -172,8 +172,12 @@ model Run {
 
 model Usage {
   id               String   @id @default(cuid())
-  runId            String
-  run              Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  runId            String?
+  run              Run?     @relation(fields: [runId], references: [id], onDelete: SetNull)
+  userId           String
+  projectId        String
+  provider         String
+  model            String
   promptTokens     Int      @default(0)
   completionTokens Int      @default(0)
   totalTokens      Int      @default(0)
@@ -182,4 +186,7 @@ model Usage {
 
   @@index([runId])
   @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([provider, model, createdAt])
 }
