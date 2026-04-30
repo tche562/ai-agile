@@ -7,12 +7,21 @@ settings:
 importers:
   .:
     dependencies:
+      "@anthropic-ai/sdk":
+        specifier: ^0.90.0
+        version: 0.90.0(zod@4.3.6)
       "@prisma/adapter-pg":
         specifier: ^7.4.2
         version: 7.4.2
       "@prisma/client":
         specifier: ^7.4.2
         version: 7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
+      "@upstash/ratelimit":
+        specifier: ^2.0.8
+        version: 2.0.8(@upstash/redis@1.37.0)
+      "@upstash/redis":
+        specifier: ^1.37.0
+        version: 1.37.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -31,6 +40,9 @@ importers:
       next-auth:
         specifier: ^4.24.13
         version: 4.24.13(next@16.1.6(@babel/core@7.29.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      openai:
+        specifier: ^6.34.0
+        version: 6.34.0(zod@4.3.6)
       pg:
         specifier: ^8.19.0
         version: 8.19.0
@@ -113,6 +125,18 @@ packages:
         integrity: sha512-9q/yCljni37pkMr4sPrI3G4jqdIk074+iukc5aFJl7kmDCCsiJrbZ6zKxnES1Gwg+i9RcDZwvktl23puGslmvA==,
       }
     hasBin: true
+
+  "@anthropic-ai/sdk@0.90.0":
+    resolution:
+      {
+        integrity: sha512-MzZtPabJF1b0FTDl6Z6H5ljphPwACLGP13lu8MTiB8jXaW/YXlpOp+Po2cVou3MPM5+f5toyLnul9whKCy7fBg==,
+      }
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   "@babel/code-frame@7.29.0":
     resolution:
@@ -2913,6 +2937,27 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  "@upstash/core-analytics@0.0.10":
+    resolution:
+      {
+        integrity: sha512-7qJHGxpQgQr9/vmeS1PktEwvNAF7TI4iJDi8Pu2CFZ9YUGHZH4fOP5TfYlZ4aVxfopnELiE4BS4FBjyK7V1/xQ==,
+      }
+    engines: { node: ">=16.0.0" }
+
+  "@upstash/ratelimit@2.0.8":
+    resolution:
+      {
+        integrity: sha512-YSTMBJ1YIxsoPkUMX/P4DDks/xV5YYCswWMamU8ZIfK9ly6ppjRnVOyBhMDXBmzjODm4UQKcxsJPvaeFAijp5w==,
+      }
+    peerDependencies:
+      "@upstash/redis": ^1.34.3
+
+  "@upstash/redis@1.37.0":
+    resolution:
+      {
+        integrity: sha512-LqOJ3+XWPLSZ2rGSed5DYG3ixybxb8EhZu3yQqF7MdZX1wLBG/FRcI6xcUZXHy/SS7mmXWyadrud0HJHkOc+uw==,
+      }
+
   "@vitest/expect@4.0.18":
     resolution:
       {
@@ -5067,6 +5112,13 @@ packages:
         integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==,
       }
 
+  json-schema-to-ts@3.1.1:
+    resolution:
+      {
+        integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==,
+      }
+    engines: { node: ">=16" }
+
   json-schema-traverse@0.4.1:
     resolution:
       {
@@ -5733,6 +5785,21 @@ packages:
         integrity: sha512-smsWv2LzFjP03xmvFoJ331ss6h+jixfA4UUV/Bsiyuu4YJPfN+FIQGOIiv4w9/+MoHkfkJ22UIaQWRVFRfH6Vw==,
       }
     engines: { node: ">=20" }
+
+  openai@6.34.0:
+    resolution:
+      {
+        integrity: sha512-yEr2jdGf4tVFYG6ohmr3pF6VJuveP0EA/sS8TBx+4Eq5NT10alu5zg2dmxMXMgqpihRDQlFGpRt2XwsGj+Fyxw==,
+      }
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   openid-client@5.7.1:
     resolution:
@@ -6860,6 +6927,12 @@ packages:
       }
     engines: { node: ">=16" }
 
+  ts-algebra@2.0.0:
+    resolution:
+      {
+        integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==,
+      }
+
   ts-api-utils@2.4.0:
     resolution:
       {
@@ -6981,6 +7054,12 @@ packages:
         integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==,
       }
     engines: { node: ">= 0.4" }
+
+  uncrypto@0.1.3:
+    resolution:
+      {
+        integrity: sha512-Ql87qFHB3s/De2ClA9e0gsnS6zXG27SkTiSJwjCc9MebbfapQfuPzumMIUMi38ezPZVNFcHI9sUIepeQfw8J8Q==,
+      }
 
   undici-types@6.21.0:
     resolution:
@@ -7386,6 +7465,12 @@ snapshots:
       fzf: 0.5.2
       package-manager-detector: 1.6.0
       tinyexec: 1.0.2
+
+  "@anthropic-ai/sdk@0.90.0(zod@4.3.6)":
+    dependencies:
+      json-schema-to-ts: 3.1.1
+    optionalDependencies:
+      zod: 4.3.6
 
   "@babel/code-frame@7.29.0":
     dependencies:
@@ -9222,6 +9307,19 @@ snapshots:
   "@unrs/resolver-binding-win32-x64-msvc@1.11.1":
     optional: true
 
+  "@upstash/core-analytics@0.0.10":
+    dependencies:
+      "@upstash/redis": 1.37.0
+
+  "@upstash/ratelimit@2.0.8(@upstash/redis@1.37.0)":
+    dependencies:
+      "@upstash/core-analytics": 0.0.10
+      "@upstash/redis": 1.37.0
+
+  "@upstash/redis@1.37.0":
+    dependencies:
+      uncrypto: 0.1.3
+
   "@vitest/expect@4.0.18":
     dependencies:
       "@standard-schema/spec": 1.1.0
@@ -10616,6 +10714,11 @@ snapshots:
 
   json-parse-even-better-errors@2.3.1: {}
 
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      "@babel/runtime": 7.29.2
+      ts-algebra: 2.0.0
+
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -10992,6 +11095,10 @@ snapshots:
       is-inside-container: 1.0.0
       powershell-utils: 0.1.0
       wsl-utils: 0.3.1
+
+  openai@6.34.0(zod@4.3.6):
+    optionalDependencies:
+      zod: 4.3.6
 
   openid-client@5.7.1:
     dependencies:
@@ -11804,6 +11911,8 @@ snapshots:
     dependencies:
       tldts: 7.0.23
 
+  ts-algebra@2.0.0: {}
+
   ts-api-utils@2.4.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
@@ -11903,6 +12012,8 @@ snapshots:
       has-bigints: 1.1.0
       has-symbols: 1.1.0
       which-boxed-primitive: 1.1.1
+
+  uncrypto@0.1.3: {}
 
   undici-types@6.21.0: {}
 
