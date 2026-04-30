@@ -3,8 +3,17 @@ import { RunStatus, RunType } from "@prisma/client";
 import { createLLMClient, type LLMClient, type LLMProvider } from "../llm";
 import { db } from "../db";
 import { applyOrchestratorPlan } from "./apply-engine";
-import { buildGeneratePlanContext } from "./context";
-import { buildGeneratePlanSystemPrompt, buildGeneratePlanUserPrompt } from "./prompts";
+import {
+  buildGeneratePlanContext,
+  buildReplanContext,
+  type BuildReplanContextOptions,
+} from "./context";
+import {
+  buildGeneratePlanSystemPrompt,
+  buildGeneratePlanUserPrompt,
+  buildReplanSystemPrompt,
+  buildReplanUserPrompt,
+} from "./prompts";
 import { orchestratorOutputSchema, type OrchestratorOutput, type TicketHarness } from "./schemas";
 
 const MIN_GENERATED_TICKETS = 8;
@@ -28,6 +37,13 @@ type GeneratePlanServiceInput = {
   projectId: string;
   userId: string;
   llmClient?: LLMClient;
+};
+
+type ReplanProjectServiceInput = {
+  projectId: string;
+  userId: string;
+  llmClient?: LLMClient;
+  contextOptions?: BuildReplanContextOptions;
 };
 
 function resolveLLMProvider(): LLMProvider {
@@ -124,6 +140,67 @@ export async function generatePlan(input: GeneratePlanServiceInput) {
 
     const plan = orchestratorOutputSchema.parse(result.object);
     assertGeneratePlanOutput(plan);
+
+    const applied = await applyOrchestratorPlan({
+      projectId: input.projectId,
+      userId: input.userId,
+      runId: run.id,
+      plan,
+    });
+
+    await markRun(run.id, RunStatus.SUCCEEDED);
+
+    return {
+      runId: run.id,
+      ...applied,
+    };
+  } catch (error) {
+    await markRun(run.id, RunStatus.FAILED);
+    throw error;
+  }
+}
+
+export async function replanProject(input: ReplanProjectServiceInput) {
+  const context = await buildReplanContext(input.projectId, input.userId, input.contextOptions);
+
+  if (!context) {
+    return null;
+  }
+
+  const run = await db.run.create({
+    data: {
+      projectId: input.projectId,
+      type: RunType.REPLAN,
+    },
+  });
+
+  try {
+    await markRun(run.id, RunStatus.RUNNING);
+
+    const llmClient = input.llmClient ?? createLLMClient(resolveLLMProvider());
+    const result = await llmClient.generateJSON({
+      system: buildReplanSystemPrompt(),
+      user: buildReplanUserPrompt(context),
+      schema: orchestratorOutputSchema,
+      meta: {
+        userId: input.userId,
+        projectId: input.projectId,
+        runId: run.id,
+        purpose: "orchestrator.replan",
+        temperature: 0,
+      },
+    });
+
+    const plan = orchestratorOutputSchema.parse(result.object);
+
+    for (const ticket of plan.createTickets) {
+      assertHarnessComplete(ticket.harness, ticket.title);
+    }
+    for (const ticket of plan.updateTickets) {
+      if (ticket.harness) {
+        assertHarnessComplete(ticket.harness, ticket.ticketId);
+      }
+    }
 
     const applied = await applyOrchestratorPlan({
       projectId: input.projectId,
