@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { assertProjectOwnership } from "@/server/projects/assert-project-ownership";
 import { createTicketSchema } from "@/server/tickets/ticket.schemas";
+import { toTicketExecutionDTO } from "../../../../../server/tickets/execution-context";
 
 type RouteContext = {
   params: Promise<{ projectId: string }>;
@@ -76,21 +77,13 @@ export async function POST(request: Request, { params }: RouteContext) {
       data: {
         currentVersionId: initialTicketVersion.id,
       },
-      select: {
-        id: true,
-        projectId: true,
-        title: true,
-        description: true,
-        status: true,
-        priority: true,
-        currentVersionId: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
+        currentVersion: true,
       },
     });
 
     return {
-      ticket: ticketWithCurrentVersion,
+      ticket: toTicketExecutionDTO(ticketWithCurrentVersion),
       version: initialTicketVersion,
     };
   });
@@ -113,18 +106,10 @@ export async function GET(_: Request, { params }: RouteContext) {
     orderBy: {
       createdAt: "desc",
     },
-    select: {
-      id: true,
-      projectId: true,
-      title: true,
-      description: true,
-      status: true,
-      priority: true,
-      currentVersionId: true,
-      createdAt: true,
-      updatedAt: true,
+    include: {
+      currentVersion: true,
     },
   });
 
-  return NextResponse.json(tickets);
+  return NextResponse.json(tickets.map((ticket) => toTicketExecutionDTO(ticket)));
 }

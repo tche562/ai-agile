@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { getOwnedTicketOrNull } from "@/server/tickets/get-owned-ticket-or-null";
 import { patchTicketSchema } from "@/server/tickets/ticket.schemas";
+import {
+  extractHarnessFromSnapshot,
+  toTicketExecutionDTO,
+} from "../../../../server/tickets/execution-context";
 
 type RouteContext = {
   params: Promise<{ ticketId: string }>;
@@ -58,10 +62,14 @@ async function patchTicketWithNewVersion(input: {
       },
       select: {
         version: true,
+        snapshot: true,
       },
     });
 
     const nextVersionNumber = (latestTicketVersion?.version ?? 0) + 1;
+    const previousHarness = latestTicketVersion
+      ? extractHarnessFromSnapshot(latestTicketVersion.snapshot)
+      : null;
 
     const newTicketVersion = await tx.ticketVersion.create({
       data: {
@@ -75,6 +83,7 @@ async function patchTicketWithNewVersion(input: {
           status: ticketAfterPatch.status,
           priority: ticketAfterPatch.priority,
           updatedAt: ticketAfterPatch.updatedAt.toISOString(),
+          ...(previousHarness !== null ? { harness: previousHarness } : {}),
         } as Prisma.InputJsonValue,
       },
       select: {
@@ -89,16 +98,8 @@ async function patchTicketWithNewVersion(input: {
       data: {
         currentVersionId: newTicketVersion.id,
       },
-      select: {
-        id: true,
-        projectId: true,
-        title: true,
-        description: true,
-        status: true,
-        priority: true,
-        currentVersionId: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
+        currentVersion: true,
       },
     });
 
@@ -156,5 +157,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Ticket update conflict, please retry" }, { status: 409 });
   }
 
-  return NextResponse.json(patchResult);
+  return NextResponse.json({
+    ...patchResult,
+    ticket: toTicketExecutionDTO(patchResult.ticket),
+  });
 }
