@@ -400,6 +400,99 @@ describe("replanProject", () => {
     ]);
   });
 
+  it("includes structured worklog summaries in replan context", async () => {
+    mockEventFindMany.mockResolvedValueOnce([
+      {
+        id: "event-worklog-1",
+        type: "WORKLOG_ADDED",
+        ticketId: "ticket-1",
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        payload: {
+          schemaVersion: 1,
+          runId: "run-1",
+          ticketId: "ticket-1",
+          agentRole: "IMPLEMENTER",
+          summary: "Implemented API route but follow-up tests are pending.",
+          status: "NEEDS_FOLLOWUP",
+          findings: [
+            "Route is operational.",
+            "Response shape is stable.",
+            "Error mapping works.",
+            "SHOULD_NOT_APPEAR_FINDING",
+          ],
+          risks: [
+            "Missing edge-case tests.",
+            "Potential retry regression.",
+            "Authentication branch may fail.",
+            "SHOULD_NOT_APPEAR_RISK",
+          ],
+          suggestedNextSteps: [
+            "Add regression tests for invalid payloads.",
+            "Review retry-path coverage.",
+            "Validate auth edge cases.",
+            "SHOULD_NOT_APPEAR_NEXT",
+          ],
+          replanSignal: {
+            shouldReplan: true,
+            severity: "HIGH",
+            reason: "Ticket scope now includes missing integration tests.",
+          },
+          roleSpecificOutput: {
+            implementationPlan: ["Implement route", "Map errors", "SHOULD_NOT_APPEAR_PLAN"],
+            touchedAreas: ["SHOULD_NOT_APPEAR_TOUCHED_AREAS"],
+            technicalRisks: ["Error mapping regressions"],
+            testSuggestions: ["Add route tests for 429 and 502 responses"],
+          },
+          rawText: "SHOULD_NOT_APPEAR_RAW_TEXT",
+        },
+      },
+    ]);
+
+    const plan: OrchestratorOutput = {
+      createTickets: [],
+      updateTickets: [
+        {
+          ticketId: "ticket-1",
+          description: "Add missing follow-up integration tests.",
+          reason: "Worklog indicates pending test coverage.",
+        },
+      ],
+      closeTickets: [],
+      rationale: "Follow up on agent-reported test debt.",
+    };
+    const llmClient = makeLLMClient(plan);
+
+    await replanProject({
+      projectId: "project-1",
+      userId: "user-1",
+      llmClient,
+    });
+
+    const llmCall = vi.mocked(llmClient.generateJSON).mock.calls.at(-1)?.[0];
+    const llmContext = llmCall ? JSON.parse(llmCall.user as string) : null;
+    const recentEvents = llmContext?.context?.recentEvents ?? [];
+    const worklogEvent = recentEvents.find(
+      (event: { type?: string }) => event.type === "WORKLOG_ADDED",
+    ) as { summary?: string } | undefined;
+
+    expect(worklogEvent?.summary).toContain("WORKLOG_ADDED [IMPLEMENTER/NEEDS_FOLLOWUP]");
+    expect(worklogEvent?.summary).toContain(
+      "findings: Route is operational.; Response shape is stable.; Error mapping works. (+1 more)",
+    );
+    expect(worklogEvent?.summary).toContain(
+      "risks: Missing edge-case tests.; Potential retry regression.; Authentication branch may fail. (+1 more)",
+    );
+    expect(worklogEvent?.summary).toContain(
+      "suggestedNextSteps: Add regression tests for invalid payloads.; Review retry-path coverage.; Validate auth edge cases. (+1 more)",
+    );
+    expect(worklogEvent?.summary).toContain(
+      "replanSignal: shouldReplan=true, severity=HIGH, reason=Ticket scope now includes missing integration tests.",
+    );
+    expect(worklogEvent?.summary).toContain("implementerFocus: Implement route (+2 more)");
+    expect(worklogEvent?.summary).not.toContain("SHOULD_NOT_APPEAR_TOUCHED_AREAS");
+    expect(worklogEvent?.summary).not.toContain("SHOULD_NOT_APPEAR_RAW_TEXT");
+  });
+
   it("lets the apply engine reject immutable ticket changes instead of duplicating that logic", async () => {
     const plan: OrchestratorOutput = {
       createTickets: [],

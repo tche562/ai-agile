@@ -7,6 +7,7 @@ import {
   type RecentEventSummary,
   type TicketHarness,
 } from "./schemas";
+import { summarizeEventForReplan } from "./event-summary";
 
 const DEFAULT_RECENT_EVENT_LIMIT = 30;
 const DEFAULT_ACTIVE_TICKET_LIMIT = 100;
@@ -39,25 +40,6 @@ function extractHarness(snapshot: Prisma.JsonValue | null | undefined): TicketHa
   }
 
   return harness as TicketHarness;
-}
-
-function summarizeEventPayload(type: string, payload: Prisma.JsonValue): string {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return `${type} event recorded.`;
-  }
-
-  const value = payload as Record<string, unknown>;
-  const summaryCandidates = [
-    value["summary"],
-    value["reason"],
-    value["rationale"],
-    value["decision"],
-    value["blocker"],
-    value["change"],
-  ];
-  const summary = summaryCandidates.find((candidate) => typeof candidate === "string");
-
-  return summary ? `${type}: ${summary}` : `${type} event recorded.`;
 }
 
 export async function buildGeneratePlanContext(projectId: string, userId: string) {
@@ -165,7 +147,7 @@ export async function buildReplanContext(
     type: event.type,
     ticketId: event.ticketId,
     createdAt: event.createdAt.toISOString(),
-    summary: summarizeEventPayload(event.type, event.payload),
+    summary: summarizeEventForReplan(event.type, event.payload),
     payload: event.payload,
   }));
 
