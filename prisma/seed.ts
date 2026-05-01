@@ -158,7 +158,7 @@ async function main() {
     projectId: ownerAProject.id,
     ticketId: ownerATickets[0]?.id ?? null,
     payload: {
-      agentRole: "ENGINEER",
+      agentRole: "IMPLEMENTER",
       summary: "Initial worklog entry for owner A ticket.",
       artifacts: ["docs/epic-1-notes.md"],
     },
@@ -213,7 +213,7 @@ async function main() {
     projectId: ownerBProject.id,
     ticketId: ownerBTickets[0]?.id ?? null,
     payload: {
-      agentRole: "PM",
+      agentRole: "PLANNER",
       summary: "Kickoff notes for owner B project.",
     },
   });

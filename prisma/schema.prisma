@@ -53,9 +53,8 @@ enum RunType {
 }
 
 enum AgentRole {
-  PM
-  TECH_LEAD
-  ENGINEER
+  PLANNER
+  IMPLEMENTER
   QA
 }
 
