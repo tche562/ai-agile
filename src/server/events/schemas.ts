@@ -1,16 +1,99 @@
 import { EventType } from "@prisma/client";
 import { z } from "zod";
 
+import {
+  agentReplanSignalSchema,
+  agentWorklogStatusSchema,
+  implementerAgentOutputSchema,
+  plannerAgentOutputSchema,
+  qaAgentOutputSchema,
+} from "../agents/schemas";
+
 const ticketUpdatedPayloadSchema = z.object({
   fieldsChanged: z.array(z.string()).min(1),
   summary: z.string().min(1),
 });
 
-const worklogAddedPayloadSchema = z.object({
-  agentRole: z.string().min(1),
-  summary: z.string().min(1),
-  artifacts: z.array(z.string()).optional(),
-});
+const plannerRoleSpecificOutputSchema = plannerAgentOutputSchema
+  .pick({
+    planningNotes: true,
+    dependencyNotes: true,
+    scopeConcerns: true,
+    acceptanceCriteriaSuggestions: true,
+  })
+  .strict();
+
+const implementerRoleSpecificOutputSchema = implementerAgentOutputSchema
+  .pick({
+    implementationPlan: true,
+    touchedAreas: true,
+    technicalRisks: true,
+    testSuggestions: true,
+  })
+  .strict();
+
+const qaRoleSpecificOutputSchema = qaAgentOutputSchema
+  .pick({
+    testPlan: true,
+    edgeCases: true,
+    regressionRisks: true,
+    acceptanceCheckResults: true,
+  })
+  .strict();
+
+const structuredWorklogBasePayloadSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: z.string().min(1),
+    ticketId: z.string().min(1),
+    summary: z.string().min(1),
+    status: agentWorklogStatusSchema,
+    findings: z.array(z.string().min(1)),
+    risks: z.array(z.string().min(1)),
+    suggestedNextSteps: z.array(z.string().min(1)),
+    replanSignal: agentReplanSignalSchema,
+  })
+  .strict();
+
+const plannerStructuredWorklogPayloadSchema = structuredWorklogBasePayloadSchema
+  .extend({
+    agentRole: z.literal("PLANNER"),
+    roleSpecificOutput: plannerRoleSpecificOutputSchema,
+  })
+  .strict();
+
+const implementerStructuredWorklogPayloadSchema = structuredWorklogBasePayloadSchema
+  .extend({
+    agentRole: z.literal("IMPLEMENTER"),
+    roleSpecificOutput: implementerRoleSpecificOutputSchema,
+  })
+  .strict();
+
+const qaStructuredWorklogPayloadSchema = structuredWorklogBasePayloadSchema
+  .extend({
+    agentRole: z.literal("QA"),
+    roleSpecificOutput: qaRoleSpecificOutputSchema,
+  })
+  .strict();
+
+const structuredWorklogAddedPayloadSchema = z.discriminatedUnion("agentRole", [
+  plannerStructuredWorklogPayloadSchema,
+  implementerStructuredWorklogPayloadSchema,
+  qaStructuredWorklogPayloadSchema,
+]);
+
+const legacyWorklogAddedPayloadSchema = z
+  .object({
+    agentRole: z.string().min(1),
+    summary: z.string().min(1),
+    artifacts: z.array(z.string()).optional(),
+  })
+  .strict();
+
+const worklogAddedPayloadSchema = z.union([
+  structuredWorklogAddedPayloadSchema,
+  legacyWorklogAddedPayloadSchema,
+]);
 
 const decisionMadePayloadSchema = z.object({
   decision: z.string().min(1),
