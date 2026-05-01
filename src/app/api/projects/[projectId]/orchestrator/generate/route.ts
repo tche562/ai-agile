@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { llmErrorToResponse } from "@/server/llm";
-import { generatePlan, GeneratePlanAlreadyExistsError } from "@/server/orchestrator/service";
+import {
+  generatePlan,
+  GeneratePlanAlreadyExistsError,
+  OrchestratorInvalidOutputError,
+} from "@/server/orchestrator";
 import { assertProjectOwnership } from "@/server/projects/assert-project-ownership";
 
 type RouteContext = {
@@ -33,6 +37,10 @@ export async function POST(_: Request, { params }: RouteContext) {
         { error: "Generate Plan can only run for projects without existing tickets" },
         { status: 409 },
       );
+    }
+
+    if (error instanceof OrchestratorInvalidOutputError) {
+      return NextResponse.json({ error: "Invalid orchestrator output" }, { status: 502 });
     }
 
     const llmResponse = llmErrorToResponse(error);

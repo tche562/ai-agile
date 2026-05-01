@@ -4,6 +4,7 @@ import { db } from "../db";
 import { createValidatedEvent } from "../events/service";
 import type { OrchestratorOutput, TicketHarness } from "./schemas";
 
+// In this project, "unstarted mutable tickets" are BACKLOG and TODO.
 export const MUTABLE_TICKET_STATUSES = [TicketStatus.BACKLOG, TicketStatus.TODO] as const;
 
 type MutableTicketStatus = (typeof MUTABLE_TICKET_STATUSES)[number];

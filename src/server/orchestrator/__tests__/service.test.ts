@@ -196,7 +196,7 @@ describe("generatePlan", () => {
         userId: "user-1",
         llmClient: makeLLMClient(invalidPlan),
       }),
-    ).rejects.toThrowError();
+    ).rejects.toBeInstanceOf(OrchestratorInvalidOutputError);
 
     expect(mockApplyOrchestratorPlan).not.toHaveBeenCalled();
     expect(mockRunUpdate).toHaveBeenLastCalledWith({
@@ -219,7 +219,7 @@ describe("generatePlan", () => {
         userId: "user-1",
         llmClient: makeLLMClient(invalidPlan),
       }),
-    ).rejects.toThrowError();
+    ).rejects.toBeInstanceOf(OrchestratorInvalidOutputError);
 
     expect(mockApplyOrchestratorPlan).not.toHaveBeenCalled();
   });
@@ -304,6 +304,21 @@ describe("replanProject", () => {
   });
 
   it("loads tickets and recent events, calls the LLM Gateway, and applies a valid replan", async () => {
+    mockTicketFindMany.mockResolvedValueOnce([
+      {
+        id: "ticket-1",
+        title: "Build project dashboard",
+        description: "Create the dashboard.",
+        status: "BACKLOG",
+        priority: "HIGH",
+        currentVersion: {
+          snapshot: {
+            harness: makeHarness("existing-ticket"),
+          },
+        },
+      },
+    ]);
+
     const plan: OrchestratorOutput = {
       createTickets: [
         {
@@ -337,6 +352,11 @@ describe("replanProject", () => {
 
     expect(mockTicketFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({
+          status: {
+            in: ["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED"],
+          },
+        }),
         take: 50,
       }),
     );
@@ -360,6 +380,14 @@ describe("replanProject", () => {
           purpose: "orchestrator.replan",
         }),
       }),
+    );
+    const llmCall = vi.mocked(llmClient.generateJSON).mock.calls.at(-1)?.[0];
+    const llmContext = llmCall ? JSON.parse(llmCall.user as string) : null;
+    expect(llmContext?.context?.currentTickets).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "ticket-1" })]),
+    );
+    expect(llmContext?.context?.currentTickets).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "ticket-done" })]),
     );
     expect(mockApplyOrchestratorPlan).toHaveBeenCalledWith({
       projectId: "project-1",
@@ -443,6 +471,40 @@ describe("replanProject", () => {
         projectId: "project-1",
         userId: "user-1",
         llmClient: makeLLMClient(plan),
+      }),
+    ).rejects.toBeInstanceOf(OrchestratorInvalidOutputError);
+
+    expect(mockApplyOrchestratorPlan).not.toHaveBeenCalled();
+    expect(mockRunUpdate).toHaveBeenLastCalledWith({
+      where: {
+        id: "run-replan-1",
+      },
+      data: expect.objectContaining({
+        status: RunStatus.FAILED,
+      }),
+    });
+  });
+
+  it("rejects invalid status values in replan output before applying", async () => {
+    const invalidPlan = {
+      createTickets: [],
+      updateTickets: [
+        {
+          ticketId: "ticket-1",
+          description: "Attempting invalid status update from model output.",
+          status: "DOING",
+          reason: "Invalid enum should be rejected by schema.",
+        },
+      ],
+      closeTickets: [],
+      rationale: "Bad enum proposal.",
+    };
+
+    await expect(
+      replanProject({
+        projectId: "project-1",
+        userId: "user-1",
+        llmClient: makeLLMClient(invalidPlan),
       }),
     ).rejects.toBeInstanceOf(OrchestratorInvalidOutputError);
 

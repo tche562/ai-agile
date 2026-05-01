@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { TicketStatus, type Prisma } from "@prisma/client";
 
 import { db } from "../db";
 import {
@@ -10,6 +10,13 @@ import {
 
 const DEFAULT_RECENT_EVENT_LIMIT = 30;
 const DEFAULT_ACTIVE_TICKET_LIMIT = 100;
+const REPLAN_MUTABLE_OR_ACTIVE_STATUSES = [
+  TicketStatus.BACKLOG,
+  TicketStatus.TODO,
+  TicketStatus.IN_PROGRESS,
+  TicketStatus.IN_REVIEW,
+  TicketStatus.BLOCKED,
+] as const;
 
 export type GeneratePlanContext = {
   input: OrchestratorInput;
@@ -114,6 +121,9 @@ export async function buildReplanContext(
     db.ticket.findMany({
       where: {
         projectId,
+        status: {
+          in: [...REPLAN_MUTABLE_OR_ACTIVE_STATUSES],
+        },
       },
       orderBy: {
         createdAt: "asc",

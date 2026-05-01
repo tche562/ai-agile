@@ -1,4 +1,5 @@
 import { RunStatus, RunType } from "@prisma/client";
+import { ZodError } from "zod";
 
 import { createLLMClient, type LLMClient, type LLMProvider } from "../llm";
 import { db } from "../db";
@@ -30,6 +31,18 @@ export class OrchestratorInvalidOutputError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "OrchestratorInvalidOutputError";
+  }
+}
+
+function parseOrchestratorOutput(rawOutput: unknown): OrchestratorOutput {
+  try {
+    return orchestratorOutputSchema.parse(rawOutput);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new OrchestratorInvalidOutputError("Invalid orchestrator output.");
+    }
+
+    throw error;
   }
 }
 
@@ -138,7 +151,7 @@ export async function generatePlan(input: GeneratePlanServiceInput) {
       },
     });
 
-    const plan = orchestratorOutputSchema.parse(result.object);
+    const plan = parseOrchestratorOutput(result.object);
     assertGeneratePlanOutput(plan);
 
     const applied = await applyOrchestratorPlan({
@@ -191,7 +204,7 @@ export async function replanProject(input: ReplanProjectServiceInput) {
       },
     });
 
-    const plan = orchestratorOutputSchema.parse(result.object);
+    const plan = parseOrchestratorOutput(result.object);
 
     for (const ticket of plan.createTickets) {
       assertHarnessComplete(ticket.harness, ticket.title);

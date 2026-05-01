@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { llmErrorToResponse } from "@/server/llm";
-import { replanProject } from "@/server/orchestrator/service";
+import { OrchestratorInvalidOutputError, replanProject } from "@/server/orchestrator";
 import { assertProjectOwnership } from "@/server/projects/assert-project-ownership";
 
 type RouteContext = {
@@ -50,6 +50,10 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof OrchestratorInvalidOutputError) {
+      return NextResponse.json({ error: "Invalid orchestrator output" }, { status: 502 });
+    }
+
     const llmResponse = llmErrorToResponse(error);
     if (llmResponse) {
       return llmResponse;
