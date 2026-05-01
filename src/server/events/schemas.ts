@@ -34,11 +34,41 @@ const replanRequestedPayloadSchema = z.object({
   reason: z.string().min(1),
 });
 
+const fieldDiffSchema = z.object({
+  field: z.string().min(1),
+  before: z.unknown(),
+  after: z.unknown(),
+});
+
+const appliedTicketSummarySchema = z.object({
+  ticketId: z.string().min(1),
+  title: z.string().min(1),
+});
+
+const updatedTicketSummarySchema = z.object({
+  ticketId: z.string().min(1),
+  title: z.string().min(1),
+  diffs: z.array(fieldDiffSchema),
+});
+
+const rejectedChangeSchema = z.object({
+  ticketId: z.string().min(1).optional(),
+  action: z.enum(["update", "close"]),
+  reason: z.string().min(1),
+});
+
 const replanAppliedPayloadSchema = z.object({
+  source: z.literal("orchestrator"),
+  runId: z.string().min(1).nullable().optional(),
+  userId: z.string().min(1).optional(),
   rationale: z.string().min(1),
-  updatedTicketIds: z.array(z.string()),
-  createdTicketIds: z.array(z.string()),
-  closedTicketIds: z.array(z.string()),
+  createdTickets: z.array(appliedTicketSummarySchema),
+  updatedTickets: z.array(updatedTicketSummarySchema),
+  closedTickets: z.array(updatedTicketSummarySchema),
+  rejectedChanges: z.array(rejectedChangeSchema),
+  createdTicketIds: z.array(z.string()).optional(),
+  updatedTicketIds: z.array(z.string()).optional(),
+  closedTicketIds: z.array(z.string()).optional(),
 });
 
 const payloadByTypeSchema = {
