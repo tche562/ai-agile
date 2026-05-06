@@ -65,7 +65,9 @@ Example placeholders (adjust to your project):
 
 - `DATABASE_URL` — database connection string
 - `AUTH_SECRET`, `AUTH_URL` — Auth configuration
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` — server-only keys (do not expose to client)
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY` — server-only keys (do not expose to client)
+- `LLM_PROVIDER`, `ORCHESTRATOR_LLM_PROVIDER`, `AGENT_RUN_LLM_PROVIDER` — choose `openai`, `anthropic`, or `deepseek`
+- `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL` — optional provider overrides
 - `UPSTASH_*` — rate limiting / caching (optional)
 
 ---
