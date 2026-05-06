@@ -43,4 +43,54 @@ describe("llmErrorToResponse", () => {
       error: "LLM rate limit exceeded",
     });
   });
+
+  it("maps provider connection failures to an actionable HTTP 502", async () => {
+    const response = llmErrorToResponse({
+      name: "APIConnectionError",
+      cause: {
+        cause: {
+          code: "ETIMEDOUT",
+        },
+      },
+    });
+
+    expect(response).not.toBeNull();
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toEqual({
+      error: "LLM provider is unreachable from this network. Check your proxy or switch provider.",
+    });
+  });
+
+  it("maps unsupported provider regions to an actionable HTTP 502", async () => {
+    const response = llmErrorToResponse({
+      status: 403,
+      error: {
+        code: "unsupported_country_region_territory",
+        message: "Country, region, or territory not supported",
+      },
+    });
+
+    expect(response).not.toBeNull();
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toEqual({
+      error:
+        "LLM provider is not available from this region or network. Configure a supported proxy or switch provider.",
+    });
+  });
+
+  it("maps provider auth and upstream failures to safe HTTP 502", async () => {
+    const response = llmErrorToResponse({
+      status: 403,
+      error: {
+        code: "request_forbidden",
+        message: "Forbidden",
+      },
+    });
+
+    expect(response).not.toBeNull();
+    expect(response?.status).toBe(502);
+    await expect(response?.json()).resolves.toEqual({
+      error: "LLM provider request failed",
+    });
+  });
 });
