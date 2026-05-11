@@ -10,7 +10,7 @@ const demoSchema = z.object({
   risks: z.array(z.string()),
 });
 
-type Provider = "openai" | "anthropic";
+type Provider = "openai" | "anthropic" | "deepseek";
 
 async function ensureVerifyContext() {
   const user = await db.user.upsert({
@@ -75,10 +75,11 @@ async function verifyProvider(provider: Provider) {
 async function main() {
   const hasOpenAI = Boolean(process.env.OPENAI_API_KEY);
   const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY);
+  const hasDeepSeek = Boolean(process.env.DEEPSEEK_API_KEY);
 
-  if (!hasOpenAI && !hasAnthropic) {
+  if (!hasOpenAI && !hasAnthropic && !hasDeepSeek) {
     throw new Error(
-      "No API keys found. Please set OPENAI_API_KEY and/or ANTHROPIC_API_KEY in .env",
+      "No API keys found. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, and/or DEEPSEEK_API_KEY in .env",
     );
   }
 
@@ -92,6 +93,12 @@ async function main() {
     await verifyProvider("anthropic");
   } else {
     console.log("Skipping Anthropic: ANTHROPIC_API_KEY is not set.");
+  }
+
+  if (hasDeepSeek) {
+    await verifyProvider("deepseek");
+  } else {
+    console.log("Skipping DeepSeek: DEEPSEEK_API_KEY is not set.");
   }
 }
 

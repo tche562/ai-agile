@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GenerateJSONParams, GenerateJSONResult } from "./types";
+import type { GenerateJSONParams, GenerateJSONResult, LLMProvider } from "./types";
 import { enforceLLMRateLimit } from "./ratelimit";
 import { generateJSONWithRetry } from "./retry";
 import { assertDailyLLMQuota, recordLLMUsage } from "./usage";
@@ -19,7 +19,7 @@ export type ProviderCallParams = {
 };
 
 export type ProviderCallResult = {
-  provider: "openai" | "anthropic";
+  provider: LLMProvider;
   model: string;
   rawText: string;
   inputTokens: number;
@@ -27,7 +27,7 @@ export type ProviderCallResult = {
 };
 
 export interface LLMProviderAdapter {
-  provider: "openai" | "anthropic";
+  provider: LLMProvider;
   defaultModel: string;
   generateRawText(params: ProviderCallParams): Promise<ProviderCallResult>;
 }

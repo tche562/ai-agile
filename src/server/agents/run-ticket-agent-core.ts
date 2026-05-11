@@ -46,7 +46,7 @@ export type RunTicketAgentCoreResult = {
 function resolveLLMProvider(): LLMProvider {
   const provider = process.env.AGENT_RUN_LLM_PROVIDER ?? process.env.LLM_PROVIDER ?? "openai";
 
-  if (provider === "openai" || provider === "anthropic") {
+  if (provider === "openai" || provider === "anthropic" || provider === "deepseek") {
     return provider;
   }
 

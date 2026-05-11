@@ -32,6 +32,24 @@ const PRICING_RULES: PricingRule[] = [
     inputPerMillionUsd: 3,
     outputPerMillionUsd: 15,
   },
+  {
+    provider: "deepseek",
+    modelPrefix: "deepseek-chat",
+    inputPerMillionUsd: 0.14,
+    outputPerMillionUsd: 0.28,
+  },
+  {
+    provider: "deepseek",
+    modelPrefix: "deepseek-reasoner",
+    inputPerMillionUsd: 0.14,
+    outputPerMillionUsd: 0.28,
+  },
+  {
+    provider: "deepseek",
+    modelPrefix: "deepseek-v4-flash",
+    inputPerMillionUsd: 0.14,
+    outputPerMillionUsd: 0.28,
+  },
 ];
 
 function sanitizeTokens(value: number): number {
