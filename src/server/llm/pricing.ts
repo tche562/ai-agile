@@ -50,6 +50,12 @@ const PRICING_RULES: PricingRule[] = [
     inputPerMillionUsd: 0.14,
     outputPerMillionUsd: 0.28,
   },
+  {
+    provider: "test",
+    modelPrefix: "test-deterministic-v1",
+    inputPerMillionUsd: 0,
+    outputPerMillionUsd: 0,
+  },
 ];
 
 function sanitizeTokens(value: number): number {

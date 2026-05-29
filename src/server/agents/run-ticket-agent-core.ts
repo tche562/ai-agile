@@ -50,6 +50,10 @@ function resolveLLMProvider(): LLMProvider {
     return provider;
   }
 
+  if (provider === "test" && process.env.E2E_TEST_MODE === "true") {
+    return provider;
+  }
+
   throw new Error(`Unsupported agent LLM provider: ${provider}`);
 }
 

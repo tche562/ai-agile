@@ -72,7 +72,10 @@ function DashboardDiffView({ payload }: { payload: unknown }) {
   const rationale = typeof payload.rationale === "string" ? payload.rationale : null;
 
   return (
-    <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <section
+      data-testid="replan-diff"
+      className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">Latest diff</p>
@@ -84,7 +87,10 @@ function DashboardDiffView({ payload }: { payload: unknown }) {
       </div>
 
       {rationale ? (
-        <p className="mt-4 rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-700">
+        <p
+          data-testid="replan-rationale"
+          className="mt-4 rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-700"
+        >
           {rationale}
         </p>
       ) : null}
@@ -270,7 +276,11 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                   </thead>
                   <tbody className="divide-y divide-zinc-200">
                     {ticketDTOs.map((ticket) => (
-                      <tr key={ticket.id} className="transition hover:bg-zinc-50">
+                      <tr
+                        key={ticket.id}
+                        data-testid="ticket-row"
+                        className="transition hover:bg-zinc-50"
+                      >
                         <td className="px-4 py-4">
                           <Link
                             href={`/projects/${project.id}/tickets/${ticket.id}`}

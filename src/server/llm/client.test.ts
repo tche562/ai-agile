@@ -29,10 +29,10 @@ describe("GatewayLLMClient", () => {
 
   it("records usage once on successful generation", async () => {
     const adapter: LLMProviderAdapter = {
-      provider: "openai",
+      provider: "test",
       defaultModel: "gpt-4o",
       generateRawText: vi.fn().mockResolvedValue({
-        provider: "openai",
+        provider: "test",
         model: "gpt-4o",
         rawText: JSON.stringify({ ok: true }),
         inputTokens: 120,
@@ -56,7 +56,7 @@ describe("GatewayLLMClient", () => {
     expect(mockRecordLLMUsage).toHaveBeenCalledTimes(1);
     expect(mockRecordLLMUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "openai",
+        provider: "test",
         model: "gpt-4o",
       }),
     );

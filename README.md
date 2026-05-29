@@ -51,9 +51,40 @@ pnpm dev
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:e2e
 pnpm format
 pnpm format:check
 ```
+
+### E2E (Playwright)
+
+Install Playwright browser binaries once:
+
+```bash
+pnpm exec playwright install --with-deps chromium
+```
+
+Run the project-internal MVP smoke E2E locally:
+
+```bash
+pnpm test:e2e
+```
+
+Optional modes:
+
+```bash
+pnpm test:e2e:ui
+pnpm test:e2e:headed
+```
+
+E2E env requirements (set in local shell/CI, not committed):
+
+- `E2E_TEST_MODE=true`
+- `LLM_PROVIDER=test`
+- `ORCHESTRATOR_LLM_PROVIDER=test`
+- `AGENT_RUN_LLM_PROVIDER=test`
+
+In E2E mode, authentication uses a test-only guarded path and the LLM Gateway uses a deterministic in-repo test provider. No real OpenAI/Anthropic/production provider call is made.
 
 ---
 

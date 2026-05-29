@@ -7,6 +7,10 @@ import { authOptions } from "@/auth";
 import { db } from "@/server/db";
 import { AgentRunInvalidOutputError, AgentRunTicketNotFoundError } from "@/server/agents/errors";
 import { runTicketAgentCore } from "@/server/agents/run-ticket-agent-core";
+import {
+  getE2ETestUserIdentity,
+  isE2ETestModeEnabled,
+} from "../../../../../server/auth/e2e-test-mode";
 import { createValidatedEvent } from "@/server/events/service";
 import { llmErrorToResponse } from "@/server/llm";
 import { agentRoleSchema, type AgentOutput } from "../../../../../server/agents/schemas";
@@ -69,6 +73,23 @@ function buildWorklogPayload(input: { runId: string; ticketId: string; agentOutp
 }
 
 async function getApiAuthUserOrNull() {
+  if (isE2ETestModeEnabled()) {
+    const testIdentity = getE2ETestUserIdentity();
+
+    return db.user.upsert({
+      where: {
+        email: testIdentity.email,
+      },
+      create: {
+        email: testIdentity.email,
+        name: testIdentity.name,
+      },
+      update: {
+        name: testIdentity.name,
+      },
+    });
+  }
+
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
