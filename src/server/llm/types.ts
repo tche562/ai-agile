@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type LLMProvider = "openai" | "anthropic";
+export type LLMProvider = "openai" | "anthropic" | "deepseek";
 
 export type LLMGenerateJSONMeta = {
   userId: string;

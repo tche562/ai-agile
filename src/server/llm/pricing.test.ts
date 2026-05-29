@@ -13,4 +13,15 @@ describe("estimateLLMCostUsd", () => {
 
     expect(cost).toBe(0);
   });
+
+  it("estimates DeepSeek chat costs", () => {
+    const cost = estimateLLMCostUsd({
+      provider: "deepseek",
+      model: "deepseek-chat",
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+    });
+
+    expect(cost).toBe(0.28);
+  });
 });
