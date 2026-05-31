@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { vi } from "vitest";
 
 import { DailyQuotaExceededError } from "./errors";
 import { llmErrorToResponse } from "./route-error";
 import { LLMRateLimitError } from "./types";
+
+const { mockLogRuntimeWarning } = vi.hoisted(() => ({
+  mockLogRuntimeWarning: vi.fn(),
+}));
+
+vi.mock("../observability/logger", () => ({
+  logRuntimeWarning: mockLogRuntimeWarning,
+}));
 
 describe("llmErrorToResponse", () => {
   it("maps DailyQuotaExceededError to HTTP 429 safely", async () => {
@@ -19,6 +28,11 @@ describe("llmErrorToResponse", () => {
     await expect(response?.json()).resolves.toEqual({
       error: "Daily LLM quota exceeded",
     });
+    expect(mockLogRuntimeWarning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "daily_quota_exceeded",
+      }),
+    );
   });
 
   it("returns null for unrelated errors", () => {
@@ -41,6 +55,33 @@ describe("llmErrorToResponse", () => {
     expect(response?.headers.get("Retry-After")).toBe("60");
     await expect(response?.json()).resolves.toEqual({
       error: "LLM rate limit exceeded",
+    });
+    expect(mockLogRuntimeWarning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "rate_limit_exceeded",
+      }),
+    );
+  });
+
+  it("includes runId in safe 429 body when context provides it", async () => {
+    const response = llmErrorToResponse(
+      new LLMRateLimitError({
+        identifier: "user-1:project-1",
+        limit: 5,
+        remaining: 0,
+        reset: 1_774_000_000,
+        retryAfterSeconds: 60,
+      }),
+      {
+        runId: "run-1",
+        route: "POST /api/projects/[projectId]/orchestrator/replan",
+      },
+    );
+
+    expect(response).not.toBeNull();
+    await expect(response?.json()).resolves.toEqual({
+      error: "LLM rate limit exceeded",
+      runId: "run-1",
     });
   });
 

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockApplyOrchestratorPlan,
   mockEventFindMany,
+  mockLogRuntimeError,
   mockProjectFindFirst,
   mockRunCreate,
   mockRunUpdate,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   mockApplyOrchestratorPlan: vi.fn(),
   mockEventFindMany: vi.fn(),
+  mockLogRuntimeError: vi.fn(),
   mockProjectFindFirst: vi.fn(),
   mockRunCreate: vi.fn(),
   mockRunUpdate: vi.fn(),
@@ -37,6 +39,10 @@ vi.mock("../../db", () => ({
 
 vi.mock("../apply-engine", () => ({
   applyOrchestratorPlan: mockApplyOrchestratorPlan,
+}));
+
+vi.mock("../../observability/logger", () => ({
+  logRuntimeError: mockLogRuntimeError,
 }));
 
 import {
@@ -207,6 +213,15 @@ describe("generatePlan", () => {
         status: RunStatus.FAILED,
       }),
     });
+    expect(mockLogRuntimeError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "orchestrator_invalid_output",
+        context: expect.objectContaining({
+          runId: "run-1",
+          projectId: "project-1",
+        }),
+      }),
+    );
   });
 
   it("rejects attempts to set ticket status before applying", async () => {
@@ -610,5 +625,34 @@ describe("replanProject", () => {
         status: RunStatus.FAILED,
       }),
     });
+  });
+
+  it("logs apply engine failure with runId and operation context", async () => {
+    const plan: OrchestratorOutput = {
+      createTickets: [],
+      updateTickets: [],
+      closeTickets: [],
+      rationale: "Apply should fail for this test.",
+    };
+    mockApplyOrchestratorPlan.mockRejectedValueOnce(new Error("db failure"));
+
+    await expect(
+      replanProject({
+        projectId: "project-1",
+        userId: "user-1",
+        llmClient: makeLLMClient(plan),
+      }),
+    ).rejects.toThrow("db failure");
+
+    expect(mockLogRuntimeError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "apply_engine_failed",
+        context: expect.objectContaining({
+          runId: "run-replan-1",
+          projectId: "project-1",
+          operation: "apply_orchestrator_plan",
+        }),
+      }),
+    );
   });
 });

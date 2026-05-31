@@ -7,6 +7,10 @@ const { mockEnforceRateLimit, mockAssertDailyLLMQuota, mockRecordLLMUsage } = vi
   mockRecordLLMUsage: vi.fn(),
 }));
 
+const { mockLogRuntimeWarning } = vi.hoisted(() => ({
+  mockLogRuntimeWarning: vi.fn(),
+}));
+
 vi.mock("./ratelimit", () => ({
   enforceLLMRateLimit: mockEnforceRateLimit,
 }));
@@ -14,6 +18,10 @@ vi.mock("./ratelimit", () => ({
 vi.mock("./usage", () => ({
   assertDailyLLMQuota: mockAssertDailyLLMQuota,
   recordLLMUsage: mockRecordLLMUsage,
+}));
+
+vi.mock("../observability/logger", () => ({
+  logRuntimeWarning: mockLogRuntimeWarning,
 }));
 
 import { GatewayLLMClient, type LLMProviderAdapter } from "./client";
@@ -25,6 +33,60 @@ describe("GatewayLLMClient", () => {
     mockEnforceRateLimit.mockResolvedValue(undefined);
     mockAssertDailyLLMQuota.mockResolvedValue(undefined);
     mockRecordLLMUsage.mockResolvedValue({ id: "usage-1" });
+  });
+
+  it("logs parse failure context without raw output", async () => {
+    const adapter: LLMProviderAdapter = {
+      provider: "openai",
+      defaultModel: "gpt-4o",
+      generateRawText: vi
+        .fn()
+        .mockResolvedValueOnce({
+          provider: "openai",
+          model: "gpt-4o",
+          rawText: JSON.stringify({ wrong: true }),
+          inputTokens: 10,
+          outputTokens: 10,
+        })
+        .mockResolvedValueOnce({
+          provider: "openai",
+          model: "gpt-4o",
+          rawText: JSON.stringify({ ok: true }),
+          inputTokens: 10,
+          outputTokens: 10,
+        }),
+    };
+    const client = new GatewayLLMClient(adapter);
+
+    await client.generateJSON({
+      system: "Return JSON",
+      user: "test",
+      schema: z.object({ ok: z.boolean() }),
+      meta: {
+        userId: "user-1",
+        projectId: "project-1",
+        runId: "run-1",
+        maxRetries: 1,
+      },
+    });
+
+    expect(mockLogRuntimeWarning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "llm_parse_failed",
+        context: expect.objectContaining({
+          runId: "run-1",
+          projectId: "project-1",
+          userId: "user-1",
+          parseFailureType: "schema_validation",
+        }),
+      }),
+    );
+    const logArgs = mockLogRuntimeWarning.mock.calls[0]?.[0] as {
+      context: Record<string, unknown>;
+    };
+    expect(logArgs.context.rawText).toBeUndefined();
+    expect(logArgs.context.systemPrompt).toBeUndefined();
+    expect(logArgs.context.userPrompt).toBeUndefined();
   });
 
   it("records usage once on successful generation", async () => {

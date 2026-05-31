@@ -13,6 +13,7 @@ import {
 } from "../../../../../server/auth/e2e-test-mode";
 import { createValidatedEvent } from "@/server/events/service";
 import { llmErrorToResponse } from "@/server/llm";
+import { logRuntimeError } from "@/server/observability/logger";
 import { agentRoleSchema, type AgentOutput } from "../../../../../server/agents/schemas";
 
 type RouteContext = {
@@ -164,19 +165,59 @@ export async function POST(request: Request, { params }: RouteContext) {
       },
     });
   } catch (error) {
+    const runId =
+      error &&
+      typeof error === "object" &&
+      "runId" in error &&
+      typeof (error as { runId?: unknown }).runId === "string"
+        ? ((error as { runId: string }).runId as string)
+        : undefined;
+
     if (error instanceof AgentRunTicketNotFoundError) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     if (error instanceof AgentRunInvalidOutputError) {
-      return NextResponse.json({ error: "Invalid agent output" }, { status: 502 });
+      return NextResponse.json(
+        {
+          error: "Invalid agent output",
+          ...(runId ? { runId } : {}),
+        },
+        { status: 502 },
+      );
     }
 
-    const llmResponse = llmErrorToResponse(error);
+    const llmResponse = llmErrorToResponse(error, {
+      route: "POST /api/tickets/[ticketId]/agent-run",
+      operation: "agent.run_ticket",
+      runId,
+      ticketId,
+      userId: currentUser.id,
+    });
     if (llmResponse) {
       return llmResponse;
     }
 
-    return NextResponse.json({ error: "Agent run failed" }, { status: 500 });
+    logRuntimeError({
+      event: "run_failed",
+      message: "Agent run route failed with unhandled error",
+      context: {
+        route: "POST /api/tickets/[ticketId]/agent-run",
+        operation: "agent.run_ticket",
+        ticketId,
+        runId,
+        userId: currentUser.id,
+        statusCode: 500,
+      },
+      error,
+    });
+
+    return NextResponse.json(
+      {
+        error: "Agent run failed",
+        ...(runId ? { runId } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

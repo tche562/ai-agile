@@ -5,6 +5,7 @@ const {
   mockAssertProjectOwnership,
   mockCreateLLMClient,
   mockEventCreate,
+  mockLogRuntimeError,
   mockLlmErrorToResponse,
   mockProjectFindFirst,
   mockRunCreate,
@@ -17,6 +18,7 @@ const {
   mockAssertProjectOwnership: vi.fn(),
   mockCreateLLMClient: vi.fn(),
   mockEventCreate: vi.fn(),
+  mockLogRuntimeError: vi.fn(),
   mockLlmErrorToResponse: vi.fn(),
   mockProjectFindFirst: vi.fn(),
   mockRunCreate: vi.fn(),
@@ -88,6 +90,13 @@ vi.mock("@/server/llm", () => ({
 vi.mock("../../../../../../server/llm", () => ({
   createLLMClient: mockCreateLLMClient,
   llmErrorToResponse: mockLlmErrorToResponse,
+}));
+
+vi.mock("@/server/observability/logger", () => ({
+  logRuntimeError: mockLogRuntimeError,
+}));
+vi.mock("../../../../../../server/observability/logger", () => ({
+  logRuntimeError: mockLogRuntimeError,
 }));
 
 vi.mock("@/server/orchestrator", async () => {

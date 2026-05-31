@@ -6,6 +6,7 @@ const {
   MockAgentRunTicketNotFoundError,
   mockCreateValidatedEvent,
   mockGetServerSession,
+  mockLogRuntimeError,
   mockLlmErrorToResponse,
   mockRunTicketAgentCore,
   mockUserUpsert,
@@ -24,6 +25,7 @@ const {
   },
   mockCreateValidatedEvent: vi.fn(),
   mockGetServerSession: vi.fn(),
+  mockLogRuntimeError: vi.fn(),
   mockLlmErrorToResponse: vi.fn(),
   mockRunTicketAgentCore: vi.fn(),
   mockUserUpsert: vi.fn(),
@@ -60,6 +62,10 @@ vi.mock("@/server/events/service", () => ({
 
 vi.mock("@/server/llm", () => ({
   llmErrorToResponse: mockLlmErrorToResponse,
+}));
+
+vi.mock("@/server/observability/logger", () => ({
+  logRuntimeError: mockLogRuntimeError,
 }));
 
 import { AgentRunInvalidOutputError, AgentRunTicketNotFoundError } from "@/server/agents/errors";
@@ -295,6 +301,41 @@ describe("POST /api/tickets/[ticketId]/agent-run", () => {
     expect(mockCreateValidatedEvent).not.toHaveBeenCalled();
   });
 
+  it("returns 502 with runId for invalid agent output when available", async () => {
+    const invalidOutputError = Object.assign(new AgentRunInvalidOutputError(), {
+      runId: "run-invalid-1",
+      stack: "sensitive stack trace",
+      rawOutput: "sensitive provider output",
+      prompt: "sensitive prompt",
+      validationDetails: "sensitive validation internals",
+    });
+    mockRunTicketAgentCore.mockRejectedValueOnce(invalidOutputError);
+
+    const response = await POST(
+      new Request("http://localhost/api/tickets/ticket-1/agent-run", {
+        method: "POST",
+        body: JSON.stringify({
+          role: "QA",
+        }),
+      }),
+      {
+        params: Promise.resolve({ ticketId: "ticket-1" }),
+      },
+    );
+
+    expect(response.status).toBe(502);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual({
+      error: "Invalid agent output",
+      runId: "run-invalid-1",
+    });
+    expect(body).not.toHaveProperty("stack");
+    expect(body).not.toHaveProperty("rawOutput");
+    expect(body).not.toHaveProperty("prompt");
+    expect(body).not.toHaveProperty("validationDetails");
+    expect(mockCreateValidatedEvent).not.toHaveBeenCalled();
+  });
+
   it("returns 429 when llm error mapper provides a quota/rate-limit response", async () => {
     const llmFailure = new Error("quota exceeded");
     const mappedResponse = new Response(JSON.stringify({ error: "Daily LLM quota exceeded" }), {
@@ -321,5 +362,37 @@ describe("POST /api/tickets/[ticketId]/agent-run", () => {
     expect(response.status).toBe(429);
     await expect(response.json()).resolves.toEqual({ error: "Daily LLM quota exceeded" });
     expect(mockCreateValidatedEvent).not.toHaveBeenCalled();
+    expect(mockLlmErrorToResponse).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        route: "POST /api/tickets/[ticketId]/agent-run",
+        operation: "agent.run_ticket",
+      }),
+    );
+  });
+
+  it("returns runId in 500 payload when upstream error carries runId", async () => {
+    const error = Object.assign(new Error("unexpected"), {
+      runId: "run-99",
+    });
+    mockRunTicketAgentCore.mockRejectedValueOnce(error);
+
+    const response = await POST(
+      new Request("http://localhost/api/tickets/ticket-1/agent-run", {
+        method: "POST",
+        body: JSON.stringify({
+          role: "PLANNER",
+        }),
+      }),
+      {
+        params: Promise.resolve({ ticketId: "ticket-1" }),
+      },
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Agent run failed",
+      runId: "run-99",
+    });
   });
 });

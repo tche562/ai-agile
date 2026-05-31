@@ -2,6 +2,7 @@ import { db } from "../db";
 import { DailyQuotaExceededError } from "./errors";
 import { estimateLLMCostUsd } from "./pricing";
 import type { LLMProvider } from "./types";
+import { logRuntimeWarning } from "../observability/logger";
 
 type UsageAggregateResult = {
   _sum?: {
@@ -113,35 +114,83 @@ export async function assertDailyLLMQuota(args: { userId: string; projectId: str
   const limits = getDailyLimitConfig();
 
   if (usageTotals.userTotalTokens >= limits.userTokenLimit) {
-    throw new DailyQuotaExceededError({
+    const error = new DailyQuotaExceededError({
       userId: args.userId,
       projectId: args.projectId,
       reason: "User daily token quota exceeded",
     });
+    logRuntimeWarning({
+      event: "daily_quota_exceeded",
+      message: "LLM request blocked by user daily token quota",
+      context: {
+        operation: "llm.daily_quota",
+        userId: args.userId,
+        projectId: args.projectId,
+        statusCode: 429,
+      },
+      error,
+    });
+    throw error;
   }
 
   if (usageTotals.projectTotalTokens >= limits.projectTokenLimit) {
-    throw new DailyQuotaExceededError({
+    const error = new DailyQuotaExceededError({
       userId: args.userId,
       projectId: args.projectId,
       reason: "Project daily token quota exceeded",
     });
+    logRuntimeWarning({
+      event: "daily_quota_exceeded",
+      message: "LLM request blocked by project daily token quota",
+      context: {
+        operation: "llm.daily_quota",
+        userId: args.userId,
+        projectId: args.projectId,
+        statusCode: 429,
+      },
+      error,
+    });
+    throw error;
   }
 
   if (usageTotals.userCostEstimate >= limits.userCostLimitUsd) {
-    throw new DailyQuotaExceededError({
+    const error = new DailyQuotaExceededError({
       userId: args.userId,
       projectId: args.projectId,
       reason: "User daily cost quota exceeded",
     });
+    logRuntimeWarning({
+      event: "daily_quota_exceeded",
+      message: "LLM request blocked by user daily cost quota",
+      context: {
+        operation: "llm.daily_quota",
+        userId: args.userId,
+        projectId: args.projectId,
+        statusCode: 429,
+      },
+      error,
+    });
+    throw error;
   }
 
   if (usageTotals.projectCostEstimate >= limits.projectCostLimitUsd) {
-    throw new DailyQuotaExceededError({
+    const error = new DailyQuotaExceededError({
       userId: args.userId,
       projectId: args.projectId,
       reason: "Project daily cost quota exceeded",
     });
+    logRuntimeWarning({
+      event: "daily_quota_exceeded",
+      message: "LLM request blocked by project daily cost quota",
+      context: {
+        operation: "llm.daily_quota",
+        userId: args.userId,
+        projectId: args.projectId,
+        statusCode: 429,
+      },
+      error,
+    });
+    throw error;
   }
 }
 

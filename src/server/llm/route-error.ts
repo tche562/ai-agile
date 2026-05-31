@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { DailyQuotaExceededError } from "./errors";
 import { LLMRateLimitError } from "./types";
+import { logRuntimeWarning } from "../observability/logger";
 
 type ProviderErrorInfo = {
   name?: string;
@@ -9,6 +10,17 @@ type ProviderErrorInfo = {
   code?: string;
   causeCode?: string;
 };
+
+type LLMErrorResponseContext = {
+  route?: string;
+  operation?: string;
+  runId?: string;
+  projectId?: string;
+  ticketId?: string;
+  userId?: string;
+};
+
+export type { LLMErrorResponseContext };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -51,17 +63,70 @@ function getProviderErrorInfo(error: unknown): ProviderErrorInfo | null {
   return info;
 }
 
+function getRunId(error: unknown, context: LLMErrorResponseContext): string | undefined {
+  if (context.runId) {
+    return context.runId;
+  }
+
+  if (!isRecord(error)) {
+    return undefined;
+  }
+
+  return readString(error.runId);
+}
+
 /**
  * Future LLM API routes should use this helper to return safe quota errors.
  */
-export function llmErrorToResponse(error: unknown): NextResponse | null {
+export function llmErrorToResponse(
+  error: unknown,
+  context: LLMErrorResponseContext = {},
+): NextResponse | null {
   if (error instanceof DailyQuotaExceededError) {
-    return NextResponse.json({ error: "Daily LLM quota exceeded" }, { status: 429 });
+    const runId = getRunId(error, context);
+
+    logRuntimeWarning({
+      event: "daily_quota_exceeded",
+      message: "Route mapped daily quota error to HTTP 429",
+      context: {
+        operation: context.operation ?? "llm.route_error_mapping",
+        route: context.route,
+        runId,
+        userId: context.userId ?? error.userId,
+        projectId: context.projectId ?? error.projectId,
+        ticketId: context.ticketId,
+        statusCode: 429,
+      },
+      error,
+    });
+    return NextResponse.json(
+      { error: "Daily LLM quota exceeded", ...(runId ? { runId } : {}) },
+      { status: 429 },
+    );
   }
 
   if (error instanceof LLMRateLimitError) {
+    const runId = getRunId(error, context);
+
+    logRuntimeWarning({
+      event: "rate_limit_exceeded",
+      message: "Route mapped LLM rate limit error to HTTP 429",
+      context: {
+        operation: context.operation ?? "llm.route_error_mapping",
+        route: context.route,
+        runId,
+        userId: context.userId,
+        projectId: context.projectId,
+        ticketId: context.ticketId,
+        statusCode: 429,
+        provider: error.provider,
+        limit: error.limit,
+        remaining: error.remaining,
+      },
+      error,
+    });
     return NextResponse.json(
-      { error: "LLM rate limit exceeded" },
+      { error: "LLM rate limit exceeded", ...(runId ? { runId } : {}) },
       {
         status: 429,
         headers: {
