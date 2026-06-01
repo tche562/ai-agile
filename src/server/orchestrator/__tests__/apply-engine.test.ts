@@ -350,6 +350,85 @@ describe("applyOrchestratorPlan", () => {
     ]);
   });
 
+  it("updates TODO tickets with a new version, field diff, and REPLAN_APPLIED audit event", async () => {
+    const state = createState();
+    seedTicketWithVersion({
+      state,
+      ticketId: "ticket-todo",
+      projectId: "project-1",
+      title: "Draft import flow",
+      description: "Design the initial import flow.",
+      status: TicketStatus.TODO,
+      priority: TicketPriority.MEDIUM,
+      harness: makeHarness("todo-original"),
+    });
+
+    const tx = buildTx(state);
+    mockTransaction.mockImplementation(async (fn: (trx: ReturnType<typeof buildTx>) => unknown) =>
+      fn(tx),
+    );
+
+    const plan = orchestratorOutputSchema.parse({
+      createTickets: [],
+      updateTickets: [
+        {
+          ticketId: "ticket-todo",
+          description: "Design the import flow with folder scanning and review states.",
+          reason: "Project scope clarified the import workflow.",
+        },
+      ],
+      closeTickets: [],
+      rationale: "Refine the TODO ticket based on new scope details.",
+    });
+
+    const result = await applyOrchestratorPlan({
+      projectId: "project-1",
+      userId: "user-1",
+      runId: "run-1",
+      plan,
+    });
+
+    const versions = state.ticketVersions
+      .filter((item) => item.ticketId === "ticket-todo")
+      .sort((left, right) => left.version - right.version);
+    const latestSnapshot = versions.at(-1)?.snapshot;
+
+    expect(versions).toHaveLength(2);
+    expect(latestSnapshot).toMatchObject({
+      id: "ticket-todo",
+      description: "Design the import flow with folder scanning and review states.",
+      status: TicketStatus.TODO,
+      priority: TicketPriority.MEDIUM,
+      harness: makeHarness("todo-original"),
+    });
+    expect(result.updatedTickets).toEqual([
+      {
+        ticketId: "ticket-todo",
+        title: "Draft import flow",
+        diffs: [
+          {
+            field: "description",
+            before: "Design the initial import flow.",
+            after: "Design the import flow with folder scanning and review states.",
+          },
+        ],
+      },
+    ]);
+    expect(state.events).toHaveLength(1);
+    expect(state.events[0]).toMatchObject({
+      type: EventType.REPLAN_APPLIED,
+      projectId: "project-1",
+      ticketId: null,
+    });
+    expect(state.events[0]?.payload).toMatchObject({
+      source: "orchestrator",
+      runId: "run-1",
+      userId: "user-1",
+      rationale: "Refine the TODO ticket based on new scope details.",
+      updatedTicketIds: ["ticket-todo"],
+    });
+  });
+
   it("does not update DONE tickets and returns rejection", async () => {
     const state = createState();
     seedTicketWithVersion({
@@ -633,5 +712,23 @@ describe("applyOrchestratorPlan", () => {
     expect(versions[0]?.snapshot.harness).toEqual(createdHarness);
     expect(versions[1]?.snapshot.harness).toEqual(updatedHarness);
     expect(versions[2]?.snapshot.harness).toEqual(updatedHarness);
+  });
+
+  it("does not open an apply transaction when orchestrator output fails schema validation", () => {
+    const invalidOutput = {
+      createTickets: [],
+      updateTickets: [
+        {
+          ticketId: "ticket-1",
+          status: "DOING",
+          reason: "Invalid status should fail schema validation.",
+        },
+      ],
+      closeTickets: [],
+      rationale: "Invalid model output.",
+    };
+
+    expect(() => orchestratorOutputSchema.parse(invalidOutput)).toThrow();
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 });

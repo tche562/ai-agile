@@ -6,12 +6,20 @@ const { mockAssertProjectOwnership, mockGeneratePlan, mockLlmErrorToResponse } =
   mockLlmErrorToResponse: vi.fn(),
 }));
 
+const { mockLogRuntimeError } = vi.hoisted(() => ({
+  mockLogRuntimeError: vi.fn(),
+}));
+
 vi.mock("@/server/projects/assert-project-ownership", () => ({
   assertProjectOwnership: mockAssertProjectOwnership,
 }));
 
 vi.mock("@/server/llm", () => ({
   llmErrorToResponse: mockLlmErrorToResponse,
+}));
+
+vi.mock("@/server/observability/logger", () => ({
+  logRuntimeError: mockLogRuntimeError,
 }));
 
 vi.mock("@/server/orchestrator", () => {
@@ -130,6 +138,14 @@ describe("POST /api/projects/[projectId]/orchestrator/generate", () => {
 
     expect(response.status).toBe(429);
     await expect(response.json()).resolves.toEqual({ error: "Daily LLM quota exceeded" });
+    expect(mockLlmErrorToResponse).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        route: "POST /api/projects/[projectId]/orchestrator/generate",
+        projectId: "project-1",
+        userId: "user-1",
+      }),
+    );
   });
 
   it("returns 502 for invalid orchestrator output", async () => {
@@ -144,5 +160,28 @@ describe("POST /api/projects/[projectId]/orchestrator/generate", () => {
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({ error: "Invalid orchestrator output" });
+  });
+
+  it("returns runId in safe 502 when invalid orchestrator output has runId", async () => {
+    const error = new OrchestratorInvalidOutputError(
+      "invalid output",
+    ) as OrchestratorInvalidOutputError & {
+      runId?: string;
+    };
+    error.runId = "run-123";
+    mockGeneratePlan.mockRejectedValue(error);
+
+    const response = await POST(
+      new Request("http://localhost/api/projects/project-1/orchestrator/generate"),
+      {
+        params: Promise.resolve({ projectId: "project-1" }),
+      },
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid orchestrator output",
+      runId: "run-123",
+    });
   });
 });

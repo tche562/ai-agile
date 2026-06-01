@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { db } from "../db";
 import { createLLMClient, type LLMClient, type LLMProvider } from "../llm";
+import { logRuntimeError } from "../observability/logger";
 import { toTicketExecutionDTO, type TicketExecutionContextDTO } from "../tickets/execution-context";
 import {
   agentOutputSchema,
@@ -37,6 +38,10 @@ type ProjectContext = {
   description: string | null;
 };
 
+export type RunErrorWithRunId = {
+  runId?: string;
+};
+
 export type RunTicketAgentCoreResult = {
   run: RunSummary;
   ticket: TicketExecutionContextDTO;
@@ -47,6 +52,10 @@ function resolveLLMProvider(): LLMProvider {
   const provider = process.env.AGENT_RUN_LLM_PROVIDER ?? process.env.LLM_PROVIDER ?? "openai";
 
   if (provider === "openai" || provider === "anthropic" || provider === "deepseek") {
+    return provider;
+  }
+
+  if (provider === "test" && process.env.E2E_TEST_MODE === "true") {
     return provider;
   }
 
@@ -174,6 +183,22 @@ function parseAndAssertAgentOutput(rawOutput: unknown, expectedRole: AgentRoleVa
   return parsed;
 }
 
+function attachRunIdToError(error: unknown, runId: string): RunErrorWithRunId | unknown {
+  if (!error || typeof error !== "object") {
+    return error;
+  }
+
+  if (!("runId" in error)) {
+    try {
+      (error as Record<string, unknown>).runId = runId;
+    } catch {
+      return error;
+    }
+  }
+
+  return error as RunErrorWithRunId;
+}
+
 export async function runTicketAgentCore(
   input: RunTicketAgentCoreInput,
 ): Promise<RunTicketAgentCoreResult> {
@@ -240,13 +265,28 @@ export async function runTicketAgentCore(
       agentOutput,
     };
   } catch (error) {
-    const safeError = toSafeAgentRunError(error);
+    const safeError = attachRunIdToError(toSafeAgentRunError(error), run.id);
 
     try {
       await markRunStatus(run.id, RunStatus.FAILED);
     } catch {
       // Preserve the original business error even if run finalization fails.
     }
+
+    logRuntimeError({
+      event: "run_failed",
+      message: "Agent core run failed",
+      context: {
+        route: "POST /api/tickets/[ticketId]/agent-run",
+        operation: "agent.run_ticket",
+        runId: run.id,
+        runType: RunType.EXECUTION,
+        projectId: context.project.id,
+        ticketId: context.ticket.id,
+        userId: input.userId,
+      },
+      error: safeError,
+    });
 
     throw safeError;
   }

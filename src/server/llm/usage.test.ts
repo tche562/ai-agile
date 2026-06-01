@@ -5,6 +5,10 @@ const { mockUsageAggregate, mockUsageCreate } = vi.hoisted(() => ({
   mockUsageCreate: vi.fn(),
 }));
 
+const { mockLogRuntimeWarning } = vi.hoisted(() => ({
+  mockLogRuntimeWarning: vi.fn(),
+}));
+
 vi.mock("../db", () => ({
   db: {
     usage: {
@@ -12,6 +16,10 @@ vi.mock("../db", () => ({
       create: mockUsageCreate,
     },
   },
+}));
+
+vi.mock("../observability/logger", () => ({
+  logRuntimeWarning: mockLogRuntimeWarning,
 }));
 
 import { DailyQuotaExceededError } from "./errors";
@@ -70,6 +78,16 @@ describe("LLM usage helpers", () => {
         projectId: "project-1",
       }),
     ).rejects.toBeInstanceOf(DailyQuotaExceededError);
+    expect(mockLogRuntimeWarning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "daily_quota_exceeded",
+        context: expect.objectContaining({
+          userId: "user-1",
+          projectId: "project-1",
+          statusCode: 429,
+        }),
+      }),
+    );
   });
 
   it("throws DailyQuotaExceededError when project token usage exceeds limit", async () => {

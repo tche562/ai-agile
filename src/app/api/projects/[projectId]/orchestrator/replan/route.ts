@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { llmErrorToResponse } from "@/server/llm";
+import { logRuntimeError } from "@/server/observability/logger";
 import { OrchestratorInvalidOutputError, replanProject } from "@/server/orchestrator";
 import { assertProjectOwnership } from "@/server/projects/assert-project-ownership";
 
@@ -50,15 +51,55 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return NextResponse.json(result);
   } catch (error) {
+    const runId =
+      error &&
+      typeof error === "object" &&
+      "runId" in error &&
+      typeof (error as { runId?: unknown }).runId === "string"
+        ? ((error as { runId: string }).runId as string)
+        : undefined;
+
     if (error instanceof OrchestratorInvalidOutputError) {
-      return NextResponse.json({ error: "Invalid orchestrator output" }, { status: 502 });
+      return NextResponse.json(
+        {
+          error: "Invalid orchestrator output",
+          ...(runId ? { runId } : {}),
+        },
+        { status: 502 },
+      );
     }
 
-    const llmResponse = llmErrorToResponse(error);
+    const llmResponse = llmErrorToResponse(error, {
+      route: "POST /api/projects/[projectId]/orchestrator/replan",
+      operation: "orchestrator.replan",
+      runId,
+      userId: ownershipCheck.currentUser.id,
+      projectId: ownershipCheck.project.id,
+    });
     if (llmResponse) {
       return llmResponse;
     }
 
-    return NextResponse.json({ error: "Replan failed" }, { status: 500 });
+    logRuntimeError({
+      event: "run_failed",
+      message: "Replan route failed with unhandled error",
+      context: {
+        route: "POST /api/projects/[projectId]/orchestrator/replan",
+        operation: "orchestrator.replan",
+        projectId: ownershipCheck.project.id,
+        userId: ownershipCheck.currentUser.id,
+        runId,
+        statusCode: 500,
+      },
+      error,
+    });
+
+    return NextResponse.json(
+      {
+        error: "Replan failed",
+        ...(runId ? { runId } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

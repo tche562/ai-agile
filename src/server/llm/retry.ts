@@ -9,6 +9,7 @@ import {
   type RawLLMResponse,
 } from "./types";
 import { parseAndValidateJson } from "./utils";
+import { logRuntimeError } from "../observability/logger";
 
 export const DEFAULT_LLM_MAX_RETRIES = 2;
 export const HARD_LLM_MAX_RETRIES = 2;
@@ -26,7 +27,19 @@ export async function generateJSONWithRetry<TSchema extends z.ZodTypeAny>(args: 
   model: string;
   schema: TSchema;
   maxRetries?: number;
+  meta?: {
+    runId?: string;
+    projectId?: string;
+    userId?: string;
+    purpose?: string;
+  };
   generateRawText: (context: LLMRetryContext) => Promise<RawLLMResponse>;
+  onParseFailure?: (input: {
+    attempt: number;
+    maxAttempts: number;
+    parseFailureType: "json_parse" | "schema_validation";
+    error: LLMOutputParseError;
+  }) => void;
 }): Promise<GenerateJSONResult<TSchema>> {
   const maxRetries = resolveMaxRetries(args.maxRetries);
   const maxAttempts = maxRetries + 1;
@@ -65,6 +78,15 @@ export async function generateJSONWithRetry<TSchema extends z.ZodTypeAny>(args: 
         throw error;
       }
 
+      args.onParseFailure?.({
+        attempt,
+        maxAttempts,
+        parseFailureType: error.message.includes("schema validation")
+          ? "schema_validation"
+          : "json_parse",
+        error,
+      });
+
       previousError = error.message;
       previousRawText = response.rawText;
 
@@ -76,9 +98,28 @@ export async function generateJSONWithRetry<TSchema extends z.ZodTypeAny>(args: 
     }
   }
 
-  throw new LLMGenerationFailedError({
+  const failure = new LLMGenerationFailedError({
     provider: args.provider,
     model: args.model,
     attempts: failedAttempts,
   });
+
+  logRuntimeError({
+    event: "llm_parse_failed",
+    message: "LLM output remained invalid after retry budget exhausted",
+    context: {
+      operation: "llm.generate_json",
+      provider: args.provider,
+      model: args.model,
+      runId: args.meta?.runId,
+      projectId: args.meta?.projectId,
+      userId: args.meta?.userId,
+      purpose: args.meta?.purpose,
+      maxAttempts,
+      failedAttemptCount: failedAttempts.length,
+    },
+    error: failure,
+  });
+
+  throw failure;
 }

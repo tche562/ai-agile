@@ -10,7 +10,7 @@ const demoSchema = z.object({
   risks: z.array(z.string()),
 });
 
-type Provider = "openai" | "anthropic" | "deepseek";
+type Provider = "openai" | "anthropic" | "deepseek" | "test";
 
 async function ensureVerifyContext() {
   const user = await db.user.upsert({
@@ -99,6 +99,10 @@ async function main() {
     await verifyProvider("deepseek");
   } else {
     console.log("Skipping DeepSeek: DEEPSEEK_API_KEY is not set.");
+  }
+
+  if (process.env.E2E_TEST_MODE === "true" || process.env.LLM_PROVIDER === "test") {
+    await verifyProvider("test");
   }
 }
 

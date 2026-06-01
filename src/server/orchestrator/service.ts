@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { createLLMClient, type LLMClient, type LLMProvider } from "../llm";
 import { db } from "../db";
 import { applyOrchestratorPlan } from "./apply-engine";
+import { logRuntimeError } from "../observability/logger";
 import {
   buildGeneratePlanContext,
   buildReplanContext,
@@ -28,6 +29,8 @@ export class GeneratePlanAlreadyExistsError extends Error {
 }
 
 export class OrchestratorInvalidOutputError extends Error {
+  runId?: string;
+
   constructor(message: string) {
     super(message);
     this.name = "OrchestratorInvalidOutputError";
@@ -63,6 +66,10 @@ function resolveLLMProvider(): LLMProvider {
   const provider = process.env.ORCHESTRATOR_LLM_PROVIDER ?? process.env.LLM_PROVIDER ?? "openai";
 
   if (provider === "openai" || provider === "anthropic" || provider === "deepseek") {
+    return provider;
+  }
+
+  if (provider === "test" && process.env.E2E_TEST_MODE === "true") {
     return provider;
   }
 
@@ -116,6 +123,16 @@ async function markRun(runId: string, status: RunStatus) {
   });
 }
 
+function attachRunIdToError(error: unknown, runId: string) {
+  if (error && typeof error === "object" && !("runId" in error)) {
+    try {
+      (error as Record<string, unknown>).runId = runId;
+    } catch {
+      // Keep original error if metadata enrichment is not possible.
+    }
+  }
+}
+
 export async function generatePlan(input: GeneratePlanServiceInput) {
   const context = await buildGeneratePlanContext(input.projectId, input.userId);
 
@@ -151,15 +168,57 @@ export async function generatePlan(input: GeneratePlanServiceInput) {
       },
     });
 
-    const plan = parseOrchestratorOutput(result.object);
-    assertGeneratePlanOutput(plan);
+    let plan: OrchestratorOutput;
+    try {
+      plan = parseOrchestratorOutput(result.object);
+      assertGeneratePlanOutput(plan);
+    } catch (error) {
+      logRuntimeError({
+        event: "orchestrator_invalid_output",
+        message: "Generate Plan received invalid orchestrator output",
+        context: {
+          operation: "orchestrator.generate_plan",
+          route: "POST /api/projects/[projectId]/orchestrator/generate",
+          runId: run.id,
+          projectId: input.projectId,
+          userId: input.userId,
+          runType: RunType.PLANNING,
+        },
+        error,
+      });
+      if (error instanceof OrchestratorInvalidOutputError) {
+        error.runId = run.id;
+      }
+      throw error;
+    }
 
-    const applied = await applyOrchestratorPlan({
-      projectId: input.projectId,
-      userId: input.userId,
-      runId: run.id,
-      plan,
-    });
+    let applied;
+    try {
+      applied = await applyOrchestratorPlan({
+        projectId: input.projectId,
+        userId: input.userId,
+        runId: run.id,
+        plan,
+      });
+    } catch (error) {
+      logRuntimeError({
+        event: "apply_engine_failed",
+        message: "Apply Engine failed during Generate Plan",
+        context: {
+          operation: "apply_orchestrator_plan",
+          route: "POST /api/projects/[projectId]/orchestrator/generate",
+          runId: run.id,
+          projectId: input.projectId,
+          userId: input.userId,
+          runType: RunType.PLANNING,
+          createTicketsCount: plan.createTickets.length,
+          updateTicketsCount: plan.updateTickets.length,
+          closeTicketsCount: plan.closeTickets.length,
+        },
+        error,
+      });
+      throw error;
+    }
 
     await markRun(run.id, RunStatus.SUCCEEDED);
 
@@ -169,6 +228,20 @@ export async function generatePlan(input: GeneratePlanServiceInput) {
     };
   } catch (error) {
     await markRun(run.id, RunStatus.FAILED);
+    attachRunIdToError(error, run.id);
+    logRuntimeError({
+      event: "run_failed",
+      message: "Generate Plan run failed",
+      context: {
+        operation: "orchestrator.generate_plan",
+        route: "POST /api/projects/[projectId]/orchestrator/generate",
+        runId: run.id,
+        projectId: input.projectId,
+        userId: input.userId,
+        runType: RunType.PLANNING,
+      },
+      error,
+    });
     throw error;
   }
 }
@@ -204,23 +277,64 @@ export async function replanProject(input: ReplanProjectServiceInput) {
       },
     });
 
-    const plan = parseOrchestratorOutput(result.object);
-
-    for (const ticket of plan.createTickets) {
-      assertHarnessComplete(ticket.harness, ticket.title);
-    }
-    for (const ticket of plan.updateTickets) {
-      if (ticket.harness) {
-        assertHarnessComplete(ticket.harness, ticket.ticketId);
+    let plan: OrchestratorOutput;
+    try {
+      plan = parseOrchestratorOutput(result.object);
+      for (const ticket of plan.createTickets) {
+        assertHarnessComplete(ticket.harness, ticket.title);
       }
+      for (const ticket of plan.updateTickets) {
+        if (ticket.harness) {
+          assertHarnessComplete(ticket.harness, ticket.ticketId);
+        }
+      }
+    } catch (error) {
+      logRuntimeError({
+        event: "orchestrator_invalid_output",
+        message: "Replan received invalid orchestrator output",
+        context: {
+          operation: "orchestrator.replan",
+          route: "POST /api/projects/[projectId]/orchestrator/replan",
+          runId: run.id,
+          projectId: input.projectId,
+          userId: input.userId,
+          runType: RunType.REPLAN,
+        },
+        error,
+      });
+      if (error instanceof OrchestratorInvalidOutputError) {
+        error.runId = run.id;
+      }
+      throw error;
     }
 
-    const applied = await applyOrchestratorPlan({
-      projectId: input.projectId,
-      userId: input.userId,
-      runId: run.id,
-      plan,
-    });
+    let applied;
+    try {
+      applied = await applyOrchestratorPlan({
+        projectId: input.projectId,
+        userId: input.userId,
+        runId: run.id,
+        plan,
+      });
+    } catch (error) {
+      logRuntimeError({
+        event: "apply_engine_failed",
+        message: "Apply Engine failed during Replan",
+        context: {
+          operation: "apply_orchestrator_plan",
+          route: "POST /api/projects/[projectId]/orchestrator/replan",
+          runId: run.id,
+          projectId: input.projectId,
+          userId: input.userId,
+          runType: RunType.REPLAN,
+          createTicketsCount: plan.createTickets.length,
+          updateTicketsCount: plan.updateTickets.length,
+          closeTicketsCount: plan.closeTickets.length,
+        },
+        error,
+      });
+      throw error;
+    }
 
     await markRun(run.id, RunStatus.SUCCEEDED);
 
@@ -230,6 +344,20 @@ export async function replanProject(input: ReplanProjectServiceInput) {
     };
   } catch (error) {
     await markRun(run.id, RunStatus.FAILED);
+    attachRunIdToError(error, run.id);
+    logRuntimeError({
+      event: "run_failed",
+      message: "Replan run failed",
+      context: {
+        operation: "orchestrator.replan",
+        route: "POST /api/projects/[projectId]/orchestrator/replan",
+        runId: run.id,
+        projectId: input.projectId,
+        userId: input.userId,
+        runType: RunType.REPLAN,
+      },
+      error,
+    });
     throw error;
   }
 }

@@ -51,8 +51,92 @@ pnpm dev
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:e2e
 pnpm format
 pnpm format:check
+```
+
+### E2E (Playwright)
+
+Install Playwright browser binaries once:
+
+```bash
+pnpm exec playwright install --with-deps chromium
+```
+
+Run the project-internal MVP smoke E2E locally:
+
+```bash
+pnpm test:e2e
+```
+
+Optional modes:
+
+```bash
+pnpm test:e2e:ui
+pnpm test:e2e:headed
+```
+
+E2E env requirements (set in local shell/CI, not committed):
+
+- `E2E_TEST_MODE=true`
+- `LLM_PROVIDER=test`
+- `ORCHESTRATOR_LLM_PROVIDER=test`
+- `AGENT_RUN_LLM_PROVIDER=test`
+
+In E2E mode, authentication uses a test-only guarded path and the LLM Gateway uses a deterministic in-repo test provider. No real OpenAI/Anthropic/production provider call is made.
+
+---
+
+## Runtime Observability
+
+The server emits structured runtime logs for key failure paths (JSON-like objects via `console.error` / `console.warn`), with `runId` correlation when available.
+
+### Tracked events
+
+- `llm_parse_failed` — LLM JSON parse/schema validation failed (attempt-level and final exhaustion).
+- `orchestrator_invalid_output` — orchestrator output rejected as invalid.
+- `apply_engine_failed` — apply engine threw unexpectedly.
+- `rate_limit_exceeded` — request blocked by LLM rate limit / mapped to 429.
+- `daily_quota_exceeded` — request blocked by daily quota / mapped to 429.
+- `run_failed` — run-level failure in orchestrator/agent route handling.
+
+### Correlation fields
+
+Common fields include: `runId`, `projectId`, `ticketId`, `userId`, `route`, `operation`, `runType`, `provider`, `model`, `statusCode`, `errorName`, `errorCode`, `timestamp`.
+
+### Safe logging policy
+
+The logger intentionally does **not** log:
+
+- API keys, auth tokens, cookies, session values
+- raw prompts or raw provider output
+- full request payloads that may contain sensitive data
+- verbose raw Zod dumps that can leak model output
+
+### Search by runId
+
+Search server logs for `runId: "<id>"` to correlate:
+
+- route-level failures
+- orchestrator/apply failures
+- usage records linked to the same run
+
+### Example log object (safe)
+
+```json
+{
+  "timestamp": "2026-05-29T01:23:45.000Z",
+  "level": "error",
+  "event": "apply_engine_failed",
+  "message": "Apply Engine failed during Replan",
+  "runId": "run_123",
+  "projectId": "project_abc",
+  "operation": "apply_orchestrator_plan",
+  "route": "POST /api/projects/[projectId]/orchestrator/replan",
+  "errorName": "Error",
+  "errorMessage": "Database write failed"
+}
 ```
 
 ---
